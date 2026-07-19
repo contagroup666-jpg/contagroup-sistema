@@ -320,9 +320,15 @@ table.t tbody tr:hover{background:var(--b0)}
         <label style="display:block;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Correo electrónico</label>
         <input type="text" id="lg_email" placeholder="usuario@empresa.com" onkeydown="if(event.key==='Enter')(AUTH_MODE==='login'?doLogin():doSignup())" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:11px 14px;font-size:13.5px;color:#fff;outline:none;transition:border-color .2s;font-family:var(--fb)" onfocus="this.style.borderColor='rgba(45,114,210,.7)'" onblur="this.style.borderColor='rgba(255,255,255,.12)'">
       </div>
-      <div style="margin-bottom:20px">
+      <div style="margin-bottom:8px">
         <label style="display:block;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Contraseña</label>
-        <input type="password" id="lg_pwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')(AUTH_MODE==='login'?doLogin():doSignup())" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:11px 14px;font-size:13.5px;color:#fff;outline:none;transition:border-color .2s;font-family:var(--fb)" onfocus="this.style.borderColor='rgba(45,114,210,.7)'" onblur="this.style.borderColor='rgba(255,255,255,.12)'">
+        <div style="position:relative">
+          <input type="password" id="lg_pwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')(AUTH_MODE==='login'?doLogin():doSignup())" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:11px 40px 11px 14px;font-size:13.5px;color:#fff;outline:none;transition:border-color .2s;font-family:var(--fb)" onfocus="this.style.borderColor='rgba(45,114,210,.7)'" onblur="this.style.borderColor='rgba(255,255,255,.12)'">
+          <button type="button" id="lg_pwd_toggle" onclick="togglePwdVisibility()" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;font-size:15px;line-height:1;color:rgba(255,255,255,.5)" aria-label="Mostrar contraseña">👁️</button>
+        </div>
+      </div>
+      <div style="text-align:right;margin-bottom:20px">
+        <a href="#" id="lg_forgot" onclick="recuperarPassword();return false" style="font-size:11.5px;color:rgba(255,255,255,.5);text-decoration:none">¿Olvidaste tu contraseña?</a>
       </div>
       <button id="lg_btn" onclick="doLogin()" style="width:100%;background:linear-gradient(135deg,var(--b6),var(--b5));color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:600;font-family:var(--fd);cursor:pointer;letter-spacing:.2px;transition:all .2s;box-shadow:0 4px 16px rgba(45,114,210,.4)" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 8px 24px rgba(45,114,210,.5)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(45,114,210,.4)'">Ingresar al sistema</button>
     </div>
@@ -3141,10 +3147,15 @@ async function editUsuario(id){
   document.getElementById('mUsrTtl').textContent='Editar Usuario';document.getElementById('u_id').value=u.id;document.getElementById('u_nom').value=u.nombre;document.getElementById('u_ema').value=u.email;document.getElementById('u_pwd').value='';await prepUsuarioModalForRole();document.getElementById('u_rol').value=u.rol;const perm=u.permisos||{pos:true,ventas:true,inventario:true,contabilidad:true,nomina:!!u.acceso_nomina};document.getElementById('u_perm_pos').checked=perm.pos!==false;document.getElementById('u_perm_ventas').checked=perm.ventas!==false;document.getElementById('u_perm_inventario').checked=perm.inventario!==false;document.getElementById('u_perm_contabilidad').checked=perm.contabilidad!==false;document.getElementById('u_acceso_nom').checked=!!perm.nomina;onRolUsuarioChange();if(u.rol==='Admin Empresa'&&(!CU||CU.rol==='Super Administrador'))pintarRolesGestionables(u.roles_gestionables||[]);if(!(CU&&CU.rol==='Admin Empresa'))document.getElementById('u_emp').value=u.empresa_id||'';document.getElementById('mUsuario').classList.add('open');
 }
 async function llamarAdminUsers(payload){
-  const{data:{session}}=await supa.auth.getSession();
-  if(!session)return{ok:false,error:'Sesión expirada, vuelve a iniciar sesión'};
-  const res=await fetch(`${SUPA_URL}/functions/v1/admin-users`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`},body:JSON.stringify(payload)});
-  try{return await res.json()}catch{return{ok:false,error:'Error de comunicación con el servidor'}}
+  try{
+    const{data:{session}}=await supa.auth.getSession();
+    if(!session)return{ok:false,error:'Sesión expirada, vuelve a iniciar sesión'};
+    const res=await fetch(`${SUPA_URL}/functions/v1/admin-users`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`},body:JSON.stringify(payload)});
+    try{return await res.json()}catch{return{ok:false,error:'Error de comunicación con el servidor'}}
+  }catch(e){
+    console.error('Error llamando admin-users:',e);
+    return{ok:false,error:'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.'};
+  }
 }
 async function saveUsuario(){
   const id=document.getElementById('u_id').value;
@@ -3159,16 +3170,23 @@ async function saveUsuario(){
   if(pwd&&pwd.length<8)return toast('La contraseña debe tener al menos 8 caracteres','er');
   const permisos={pos:document.getElementById('u_perm_pos').checked,ventas:document.getElementById('u_perm_ventas').checked,inventario:document.getElementById('u_perm_inventario').checked,contabilidad:document.getElementById('u_perm_contabilidad').checked,nomina:document.getElementById('u_acceso_nom').checked};
   const email=document.getElementById('u_ema').value.trim();
-  const btn=document.querySelector('#mUsuario .bp');if(btn){btn.disabled=true;btn.textContent='Guardando...'}
-  const payload=id?{action:'update',id,nombre:n,email,password:pwd||undefined,rol,empresa_id,permisos}:{action:'create',nombre:n,email,password:pwd,rol,empresa_id,permisos};
-  if(rol==='Admin Empresa'&&(!CU||CU.rol==='Super Administrador')){
-    payload.roles_gestionables=Array.from(document.querySelectorAll('.u_rg_cb:checked')).map(cb=>cb.value);
+  const btn=document.querySelector('#mUsuario .bp');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...'}
+  try{
+    const payload=id?{action:'update',id,nombre:n,email,password:pwd||undefined,rol,empresa_id,permisos}:{action:'create',nombre:n,email,password:pwd,rol,empresa_id,permisos};
+    if(rol==='Admin Empresa'&&(!CU||CU.rol==='Super Administrador')){
+      payload.roles_gestionables=Array.from(document.querySelectorAll('.u_rg_cb:checked')).map(cb=>cb.value);
+    }
+    const out=await llamarAdminUsers(payload);
+    if(!out.ok){toast(out.error||'Error al guardar el usuario','er');return}
+    if(CU&&CU.id===id){CU={...CU,nombre:n,email,rol,empresa_id,permisos,acceso_nomina:permisos.nomina};await applyRoleUI()}
+    closeM('mUsuario');toast(id?'Actualizado':'Creado','ok');await loadAdmin();
+  }catch(e){
+    console.error('Error al guardar usuario:',e);
+    toast('Error inesperado al guardar: '+e.message,'er');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='💾 Guardar'}
   }
-  const out=await llamarAdminUsers(payload);
-  if(btn){btn.disabled=false;btn.textContent='💾 Guardar'}
-  if(!out.ok){toast(out.error||'Error al guardar el usuario','er');return}
-  if(CU&&CU.id===id){CU={...CU,nombre:n,email,rol,empresa_id,permisos,acceso_nomina:permisos.nomina};await applyRoleUI()}
-  closeM('mUsuario');toast(id?'Actualizado':'Creado','ok');await loadAdmin();
 }
 async function delUsuario(id){
   if(!confirm('¿Eliminar usuario? Esta acción borra también su acceso de inicio de sesión.'))return;
@@ -3224,6 +3242,21 @@ async function delCli(id){
 async function exportDB(){const tabs=['cxc_recordatorios','servicios_basicos','intercompany'];const data={};for(const t of tabs)data[t]=await DB.all(t);const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`ContaGroup-local-${new Date().toISOString().slice(0,10)}.json`;a.click();toast('Datos locales exportados (la mayoría de la información vive en Supabase, no aquí)','ok')}
 async function clearDB(){const tabs=['cxc_recordatorios','servicios_basicos','intercompany'];for(const t of tabs){try{await DB.clr(t)}catch(e){}}toast('Datos locales eliminados. Recargando...','wn');setTimeout(()=>location.reload(),1200)}
 function logout(){try{if(confirm('¿Cerrar sesión?')){supa.auth.signOut().finally(()=>{toast('Hasta pronto ✌️','ok');setTimeout(()=>location.reload(),700)})}}catch(e){console.error(e);location.reload()}}
+function togglePwdVisibility(){
+  const inp=document.getElementById('lg_pwd');
+  const btn=document.getElementById('lg_pwd_toggle');
+  if(inp.type==='password'){inp.type='text';btn.textContent='🙈'}
+  else{inp.type='password';btn.textContent='👁️'}
+}
+async function recuperarPassword(){
+  const email=(document.getElementById('lg_email').value||'').trim().toLowerCase();
+  if(!email)return toast('Ingresa tu correo primero y luego pulsa "¿Olvidaste tu contraseña?"','er');
+  try{
+    const{error}=await supa.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
+    if(error){toast(error.message,'er');return}
+    toast('Te enviamos un correo con el enlace para restablecer tu contraseña','ok');
+  }catch(e){console.error('Error en recuperación:',e);toast('Error al enviar el correo: '+e.message,'er')}
+}
 async function doLogin(){
   const btn=document.getElementById('lg_btn');
   try{
@@ -3267,12 +3300,15 @@ function swAuthMode(mode){
   const nomWrap=document.getElementById('lg_nombre_wrap');
   const btn=document.getElementById('lg_btn');
   const swBtn=document.getElementById('lg_switch');
+  const forgotWrap=document.getElementById('lg_forgot')?.parentElement;
   if(mode==='signup'){
     nomWrap.style.display='';btn.textContent='Crear cuenta';btn.setAttribute('onclick','doSignup()');
     swBtn.innerHTML='¿Ya tienes cuenta? <b>Inicia sesión</b>';
+    if(forgotWrap)forgotWrap.style.display='none';
   }else{
     nomWrap.style.display='none';btn.textContent='Ingresar al sistema';btn.setAttribute('onclick','doLogin()');
     swBtn.innerHTML='¿Primera vez? <b>Crea tu cuenta</b>';
+    if(forgotWrap)forgotWrap.style.display='';
   }
 }
 function swCompras(tab,btn){['compras','proveedores','items','cxp'].forEach(t=>document.getElementById('comp-'+t)?.classList.add('hidden'));document.getElementById('comp-'+tab)?.classList.remove('hidden');document.querySelectorAll('.stab').forEach(b=>b.classList.remove('on'));btn?.classList.add('on');if(tab==='cxp')loadCXP();if(tab==='items')loadItemsCompra()}
