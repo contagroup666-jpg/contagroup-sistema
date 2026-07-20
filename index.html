@@ -358,6 +358,7 @@ table.t tbody tr:hover{background:var(--b0)}
     <button class="ni" onclick="nav('crm')"><span class="ic">🎯</span>CRM Pipeline</button>
     <div class="nl">Finanzas</div>
     <button class="ni" onclick="nav('reportes')"><span class="ic">📋</span>Reportes PDF</button>
+    <button class="ni" onclick="nav('finanzas')"><span class="ic">📐</span>Finanzas Pro</button>
     <button class="ni" onclick="nav('intercompany')"><span class="ic">🤖</span>Intercompany IA</button>
     <div class="nl">Operaciones</div>
     <button class="ni" onclick="nav('nomina')"><span class="ic">💼</span>Nómina RRHH</button>
@@ -392,7 +393,7 @@ table.t tbody tr:hover{background:var(--b0)}
 <!-- DASHBOARD -->
 <section id="s-dashboard" class="pg">
   <div class="pg-hd"><h2 id="dTitle">Dashboard</h2><p>Resumen financiero y comercial en tiempo real</p></div>
-  <div class="stabs"><button class="stab on" onclick="swDash('resumen',this)">📊 Resumen</button><button class="stab" onclick="swDash('profesional',this)">💳 Contabilidad Profesional</button></div>
+  <div class="stabs"><button class="stab on" onclick="swDash('resumen',this)">📊 Resumen</button><button class="stab" onclick="swDash('profesional',this)">💳 Contabilidad Profesional</button><button class="stab" onclick="swDash('pro',this)">🚀 Dashboard Pro</button></div>
   <div id="dash-resumen">
   <div class="kgrid">
     <div class="kc"><div class="ki">🏦</div><div class="kl">Total Activos</div><div class="kv" id="kA">$0</div><div class="kf"><span class="kch up">▲</span><span class="ks">balance</span></div></div>
@@ -430,8 +431,46 @@ table.t tbody tr:hover{background:var(--b0)}
       <div class="card"><div class="ch"><span class="ct">💳 Gastos recientes</span><button class="btn bg2 bsm" onclick="nav('compras')">Ver todos →</button></div><div class="tw"><table class="t"><thead><tr><th>Concepto</th><th>Categoría</th><th class="tr">Monto</th><th>Estado</th></tr></thead><tbody id="dpGastosTabla"></tbody></table></div></div>
     </div>
   </div>
-</section>
-<!-- PUNTO DE VENTA -->
+  <div id="dash-pro" class="hidden">
+    <div class="row" style="margin-bottom:14px;gap:8px">
+      <label class="fl2" style="align-self:center">Período:</label>
+      <button class="stab dpPer on" data-p="dia" onclick="swDashProPeriodo('dia',this)">Día</button>
+      <button class="stab dpPer" data-p="semana" onclick="swDashProPeriodo('semana',this)">Semana</button>
+      <button class="stab dpPer" data-p="mes" onclick="swDashProPeriodo('mes',this)">Mes</button>
+      <button class="stab dpPer" data-p="anio" onclick="swDashProPeriodo('anio',this)">Año</button>
+    </div>
+    <div class="kgrid">
+      <div class="kc"><div class="ki">🧾</div><div class="kl">Ventas del período</div><div class="kv" id="dpxVentas">0</div><div class="kf"><span class="ks" id="dpxVentasSub">—</span></div></div>
+      <div class="kc gr"><div class="ki">💰</div><div class="kl">Ingresos del período</div><div class="kv" id="dpxIngresos">$0</div><div class="kf"><span class="ks">ventas facturadas</span></div></div>
+      <div class="kc"><div class="ki">📦</div><div class="kl">Unidades vendidas</div><div class="kv" id="dpxUnidades">0</div><div class="kf"><span class="ks" id="dpxTicket">—</span></div></div>
+      <div class="kc pu"><div class="ki">🏭</div><div class="kl">Valor de inventario</div><div class="kv" id="dpxInvVal">$0</div><div class="kf"><span class="ks">costo × stock</span></div></div>
+      <div class="kc am"><div class="ki">⚠️</div><div class="kl">Stock crítico</div><div class="kv" id="dpxStockCrit">0</div><div class="kf"><span class="ks" id="dpxStockSub">productos</span></div></div>
+    </div>
+    <div class="g2" style="margin-bottom:14px">
+      <div class="card"><div class="ch"><span class="ct">📈 Ventas por período</span></div><div class="cb" style="position:relative;height:230px"><canvas id="chartVentasPeriodo"></canvas></div></div>
+      <div class="card"><div class="ch"><span class="ct">🏆 Top 5 productos más vendidos</span></div><div class="cb" style="position:relative;height:230px"><canvas id="chartTopProductos"></canvas></div></div>
+    </div>
+    <div class="g2" style="margin-bottom:14px">
+      <div class="card">
+        <div class="ch"><span class="ct">📦 Productos e indicadores de stock</span></div>
+        <div class="cb">
+          <div style="display:flex;align-items:center;gap:6px;border:1px solid var(--n2);border-radius:var(--rm);padding:0 10px;margin-bottom:10px">
+            <span>🔍</span><input type="text" id="dpx_qProd" class="fc" placeholder="Buscar por nombre o código..." oninput="filtrarDpxProductos(this.value)" style="border:none;background:transparent;flex:1;font-size:13px;height:36px">
+          </div>
+          <div class="tw" style="max-height:340px;overflow-y:auto"><table class="t"><thead><tr><th>Código</th><th>Producto</th><th class="tr">Stock</th><th class="tr">Mín</th><th class="tr">Precio</th><th>Estado</th></tr></thead><tbody id="dpxTablaProductos"><tr><td colspan="6" class="te">Cargando...</td></tr></tbody></table></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><span class="ct">🚚 Proveedores e indicadores de compra</span></div>
+        <div class="cb">
+          <div style="display:flex;align-items:center;gap:6px;border:1px solid var(--n2);border-radius:var(--rm);padding:0 10px;margin-bottom:10px">
+            <span>🔍</span><input type="text" id="dpx_qProv" class="fc" placeholder="Buscar por nombre o RUC..." oninput="filtrarDpxProveedores(this.value)" style="border:none;background:transparent;flex:1;font-size:13px;height:36px">
+          </div>
+          <div class="tw" style="max-height:340px;overflow-y:auto"><table class="t"><thead><tr><th>Proveedor</th><th>RUC</th><th class="tr"># Compras</th><th class="tr">Total comprado</th></tr></thead><tbody id="dpxTablaProveedores"><tr><td colspan="4" class="te">Cargando...</td></tr></tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
 <section id="s-pos" class="pg hidden">
   <div class="pg-hd" style="display:flex;align-items:flex-start;justify-content:space-between">
     <div><h2>Punto de Venta</h2><p id="posSubt">Cargando...</p></div>
@@ -612,6 +651,74 @@ table.t tbody tr:hover{background:var(--b0)}
   <div class="row no-print" style="margin-bottom:14px"><button class="btn bp" onclick="exportPDF()">📄 Descargar PDF (jsPDF)</button><button class="btn bo" onclick="imprimirRpt()">🖨️ Imprimir / Guardar PDF</button></div>
   <div class="card"><div class="ch"><span class="ct" id="rTitle">Balance General</span></div><div class="cb" id="rBody"><div style="text-align:center;color:var(--n4);padding:40px">Selecciona un reporte</div></div></div>
 </section>
+<!-- FINANZAS PRO -->
+<section id="s-finanzas" class="pg hidden">
+  <div class="pg-hd"><h2>📐 Finanzas Pro</h2><p>Estados financieros, ratios, activos fijos, CxP y kardex</p></div>
+  <div class="stabs">
+    <button class="stab on" onclick="swFinanzas('balance',this)">📊 Balance General</button>
+    <button class="stab" onclick="swFinanzas('flujo',this)">💧 Flujo de Efectivo</button>
+    <button class="stab" onclick="swFinanzas('ratios',this)">📈 Ratios</button>
+    <button class="stab" onclick="swFinanzas('equilibrio',this)">⚖️ Punto de Equilibrio</button>
+    <button class="stab" onclick="swFinanzas('activos',this)">🏭 Activos Fijos</button>
+    <button class="stab" onclick="swFinanzas('cxp',this)">📆 Cuentas por Pagar</button>
+    <button class="stab" onclick="nav('inventario');setTimeout(()=>document.querySelector('#s-inventario .stab:nth-child(2)')?.click(),50)">📋 Kardex</button>
+  </div>
+
+  <div id="fz-balance">
+    <div class="g2" style="margin-bottom:14px">
+      <div class="card"><div class="ch"><span class="ct">Activos</span></div><div class="cb tw"><table class="rt" id="fzBalActivos"></table></div></div>
+      <div class="card"><div class="ch"><span class="ct">Pasivos + Patrimonio</span></div><div class="cb tw"><table class="rt" id="fzBalPasivos"></table></div></div>
+    </div>
+  </div>
+
+  <div id="fz-flujo" class="hidden">
+    <p style="font-size:12px;color:var(--n5);margin-bottom:12px">Método directo, basado en movimientos reales de caja y bancos.</p>
+    <div class="card"><div class="cb tw"><table class="rt" id="fzFlujoTabla"></table></div></div>
+  </div>
+
+  <div id="fz-ratios" class="hidden">
+    <div class="g2">
+      <div class="card"><div class="ch"><span class="ct">💧 Liquidez</span></div><div class="cb" id="fzRatiosLiq" style="font-size:12.5px"></div></div>
+      <div class="card"><div class="ch"><span class="ct">🏗️ Endeudamiento</span></div><div class="cb" id="fzRatiosDeuda" style="font-size:12.5px"></div></div>
+    </div>
+    <div class="g2" style="margin-top:14px">
+      <div class="card"><div class="ch"><span class="ct">📈 Rentabilidad</span></div><div class="cb" id="fzRatiosRent" style="font-size:12.5px"></div></div>
+      <div class="card"><div class="ch"><span class="ct">🔄 Rotación</span></div><div class="cb" id="fzRatiosRot" style="font-size:12.5px"></div></div>
+    </div>
+  </div>
+
+  <div id="fz-equilibrio" class="hidden">
+    <div class="kgrid">
+      <div class="kc"><div class="kl">Costos fijos</div><div class="kv" id="fzCF">$0</div></div>
+      <div class="kc am"><div class="kl">Costos variables</div><div class="kv" id="fzCV">$0</div></div>
+      <div class="kc gr"><div class="kl">Margen de contribución</div><div class="kv" id="fzMC">0%</div></div>
+      <div class="kc pu"><div class="kl">Punto de equilibrio</div><div class="kv" id="fzPE">$0</div></div>
+    </div>
+    <p style="font-size:11.5px;color:var(--n5);margin:10px 0 14px">La clasificación fijo/variable se define por cuenta en el Plan de Cuentas (columna interna <code>tipo_costo</code>). Por defecto: nómina, arriendo y gastos administrativos son fijos; el resto variable.</p>
+    <div class="card"><div class="ch"><span class="ct">📋 Gastos clasificados (clase 5)</span></div><div class="tw"><table class="t"><thead><tr><th>Cuenta</th><th>Tipo</th><th class="tr">Saldo</th><th></th></tr></thead><tbody id="fzGastosClas"></tbody></table></div></div>
+  </div>
+
+  <div id="fz-activos" class="hidden">
+    <div class="row no-print" style="margin-bottom:12px"><button class="btn bp bsm" onclick="openM('mActivo')">+ Nuevo Activo</button></div>
+    <div class="kgrid">
+      <div class="kc"><div class="kl">Valor de compra total</div><div class="kv" id="fzActValor">$0</div></div>
+      <div class="kc am"><div class="kl">Depreciación acumulada</div><div class="kv" id="fzActDepAcum">$0</div></div>
+      <div class="kc gr"><div class="kl">Valor en libros</div><div class="kv" id="fzActLibros">$0</div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="tw"><table class="t"><thead><tr><th>Activo</th><th>Compra</th><th class="tr">Valor</th><th class="tr">Vida útil</th><th class="tr">Dep. mensual</th><th class="tr">Dep. acumulada</th><th class="tr">Valor en libros</th><th></th></tr></thead><tbody id="fzActTabla"><tr><td colspan="8" class="te">Sin activos</td></tr></tbody></table></div></div>
+  </div>
+
+  <div id="fz-cxp" class="hidden">
+    <div class="kgrid">
+      <div class="kc"><div class="kl">Total por pagar</div><div class="kv" id="fzCxpTotal">$0</div></div>
+      <div class="kc gr"><div class="kl">Al día (0-30 días)</div><div class="kv" id="fzCxp30">$0</div></div>
+      <div class="kc am"><div class="kl">31-60 días</div><div class="kv" id="fzCxp60">$0</div></div>
+      <div class="kc"><div class="kl">61-90 días</div><div class="kv" id="fzCxp90">$0</div></div>
+      <div class="kc" style="border-color:var(--er3)"><div class="kl">Vencido +90 días</div><div class="kv" id="fzCxpVenc" style="color:var(--er5)">$0</div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="tw"><table class="t"><thead><tr><th>Proveedor</th><th>Comprobante</th><th>Vencimiento</th><th class="tr">Días</th><th class="tr">Monto</th><th>Estado</th></tr></thead><tbody id="fzCxpTabla"><tr><td colspan="6" class="te">Sin cuentas pendientes</td></tr></tbody></table></div></div>
+  </div>
+</section>
 <!-- INTERCOMPANY IA -->
 <section id="s-intercompany" class="pg hidden">
   <div class="pg-hd"><h2>🤖 Intercompany con IA</h2><p>Transacciones entre empresas asistidas por DeepSeek AI</p></div>
@@ -660,7 +767,20 @@ table.t tbody tr:hover{background:var(--b0)}
   <div class="stabs"><button class="stab on" onclick="swAdmin('usuarios',this)">👥 Usuarios</button><button class="stab" onclick="swAdmin('empresas',this)">🏢 Empresas</button><button class="stab" onclick="swAdmin('config',this)">⚙️ Config</button></div>
   <div id="ad-usuarios" class="card"><div class="ch"><span class="ct">Usuarios</span><div class="row"><button class="btn bo bsm no-print" onclick="abrirInvitarContador()">🌐 Invitar contador externo</button><button class="btn bp bsm no-print" onclick="openM('mUsuario')">+ Usuario</button></div></div><div class="cb" id="tUsr" style="display:flex;flex-direction:column;gap:10px"></div></div>
   <div id="ad-empresas" class="card hidden"><div class="ch"><span class="ct">Empresas</span><button class="btn bp bsm no-print" onclick="openM('mEmpresa')">+ Empresa</button></div><div class="tw"><table class="t"><thead><tr><th>Nombre</th><th>RUC</th><th>Moneda</th><th>Régimen</th><th>Estado</th><th>Admin</th><th></th></tr></thead><tbody id="tEmpA"></tbody></table></div></div>
-  <div id="ad-config" class="card hidden"><div class="cb"><p style="font-size:13px;color:var(--n5);margin-bottom:16px">Gestión de datos del sistema.</p><div class="row"><button class="btn bo" onclick="exportDB()">📥 Exportar BD JSON</button><button class="btn bo" onclick="if(confirm('¿Recargar demo?'))location.reload()">🔄 Demo</button><button class="btn bd" onclick="if(confirm('⚠️ ¿Borrar TODO?'))clearDB()">🗑️ Limpiar BD</button></div><div class="div"></div><div style="font-size:11.5px;color:var(--n5);line-height:1.8"><strong>ContaGroup v4.0</strong> · ERP+CRM · IndexedDB · Offline<br>IA: DeepSeek · PDF: jsPDF 2.5 · NEC/NIIF Ecuador</div></div></div>
+  <div id="ad-config" class="card hidden"><div class="cb">
+    <div id="miEmpresaBox" class="hidden" style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--n2)">
+      <p style="font-size:13.5px;font-weight:700;color:var(--n7);margin-bottom:4px">🏢 Mi Empresa</p>
+      <p style="font-size:12px;color:var(--n5);margin-bottom:14px">Personaliza el nombre y el logo que verán tus usuarios</p>
+      <div class="g2">
+        <div class="fg"><label class="fl2">Nombre de la empresa</label><input type="text" id="me_nom" class="fc" placeholder="Ej. Consultorio Dr. Pérez"></div>
+        <div class="fg"><label class="fl2">Logo (PNG, JPG o SVG, máx 2MB)</label><div style="display:flex;align-items:center;gap:12px">
+          <img id="me_logo_preview" src="" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover;background:rgba(255,255,255,.06);display:none">
+          <input type="file" id="me_logo_file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="fc">
+        </div></div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="btn bp bsm" onclick="saveMiEmpresa()">💾 Guardar cambios</button></div>
+    </div>
+    <p style="font-size:13px;color:var(--n5);margin-bottom:16px">Gestión de datos del sistema.</p><div class="row"><button class="btn bo" onclick="exportDB()">📥 Exportar BD JSON</button><button class="btn bo" onclick="if(confirm('¿Recargar demo?'))location.reload()">🔄 Demo</button><button class="btn bd" onclick="if(confirm('⚠️ ¿Borrar TODO?'))clearDB()">🗑️ Limpiar BD</button></div><div class="div"></div><div style="font-size:11.5px;color:var(--n5);line-height:1.8"><strong>ContaGroup v4.0</strong> · ERP+CRM · IndexedDB · Offline<br>IA: DeepSeek · PDF: jsPDF 2.5 · NEC/NIIF Ecuador</div></div></div>
 </section>
 </div></div>
 <!-- COMPRAS -->
@@ -791,6 +911,8 @@ table.t tbody tr:hover{background:var(--b0)}
   <div class="fg"><label class="fl2">Código ICE SRI</label><select id="p_ice" class="fc"><option value="">No aplica ICE</option></select></div>
   <div class="g2"><div class="fg"><label class="fl2">Tipo de venta ICE</label><select id="p_ice_venta" class="fc"><option value="1-LOCAL">1-LOCAL</option><option value="2-EXPORTACION">2-EXPORTACION</option></select></div><div class="fg"><label class="fl2">Gramos azúcar /lt (bebidas)</label><input type="number" step="0.01" id="p_gramos" class="fc" placeholder="0" value="0"></div></div>
 </div><div class="mf"><button class="btn bo" onclick="closeM('mProd')">Cancelar</button><button class="btn bp" onclick="saveProd()">💾 Guardar</button></div></div></div>
+
+<div class="mo" id="mActivo"><div class="mb"><div class="mh"><h3>🏭 <span id="mActivoTtl">Nuevo Activo Fijo</span></h3><button class="mx" onclick="closeM('mActivo')">✕</button></div><div class="mc"><input type="hidden" id="af_id"><div class="g2"><div class="fg"><label class="fl2">Nombre del activo</label><input type="text" id="af_nom" class="fc" placeholder="Ej. Laptop Dell, Vehículo..."></div><div class="fg"><label class="fl2">Categoría</label><select id="af_cat" class="fc"><option>Equipo de cómputo</option><option>Muebles y enseres</option><option>Vehículos</option><option>Maquinaria</option><option>Edificios</option><option>Otros</option></select></div></div><div class="g2"><div class="fg"><label class="fl2">Fecha de compra</label><input type="date" id="af_fec" class="fc"></div><div class="fg"><label class="fl2">Valor de compra</label><input type="number" step="0.01" id="af_val" class="fc" placeholder="0.00"></div></div><div class="g2"><div class="fg"><label class="fl2">Valor residual</label><input type="number" step="0.01" id="af_res" class="fc" placeholder="0.00" value="0"></div><div class="fg"><label class="fl2">Vida útil (años)</label><input type="number" id="af_vida" class="fc" placeholder="5" value="5"></div></div></div><div class="mf"><button class="btn bo" onclick="closeM('mActivo')">Cancelar</button><button class="btn bp" onclick="saveActivo()">💾 Guardar</button></div></div></div>
 
 <div class="mo" id="mCli"><div class="mb"><div class="mh"><h3>👥 <span id="mCliTtl">Nuevo Cliente</span></h3><button class="mx" onclick="closeM('mCli')">✕</button></div><div class="mc"><input type="hidden" id="cl_id"><div class="g2"><div class="fg"><label class="fl2">Nombre</label><input type="text" id="cl_nom" class="fc"></div><div class="fg"><label class="fl2">RUC / Cédula</label><input type="text" id="cl_ruc" class="fc"></div></div><div class="g2"><div class="fg"><label class="fl2">Email</label><input type="email" id="cl_ema" class="fc"></div><div class="fg"><label class="fl2">Teléfono</label><input type="text" id="cl_tel" class="fc"></div></div></div><div class="mf"><button class="btn bo" onclick="closeM('mCli')">Cancelar</button><button class="btn bp" onclick="saveCli()">💾 Guardar</button></div></div></div>
 
@@ -1358,7 +1480,7 @@ supa.auth.onAuthStateChange((event)=>{
    APP ENGINE
 ═══════════════════════════════════════ */
 let DB=null,CE=null,CEO=null,CS='dashboard',icMsgs=[],CU=null;
-const TITLES={dashboard:'Dashboard',cuentas:'Plan de Cuentas',asientos:'Asientos',conciliacion:'Conciliación Bancaria',facturas:'Facturas',cxc:'Cuentas por Cobrar',crm:'CRM Pipeline',reportes:'Reportes PDF',intercompany:'Intercompany IA',rubros:'Rubros de Nómina',nomina_detalle:'Rol de Pago Detallado',empleados_perfil:'Perfil de Empleados',tesoreria:'Tesorería',bancos:'Bancos y Cuentas',caja:'Caja y Movimientos',nomina:'Nómina RRHH',inventario:'Inventario',admin:'Administración',compras:'Compras (Proveedores)',retenciones:'Retenciones Emitidas',ats:'Generador ATS',ice:'Generador ICE',pos:'Punto de Venta',estadisticas:'Estadísticas'};
+const TITLES={dashboard:'Dashboard',cuentas:'Plan de Cuentas',asientos:'Asientos',conciliacion:'Conciliación Bancaria',facturas:'Facturas',cxc:'Cuentas por Cobrar',crm:'CRM Pipeline',reportes:'Reportes PDF',finanzas:'Finanzas Pro',intercompany:'Intercompany IA',rubros:'Rubros de Nómina',nomina_detalle:'Rol de Pago Detallado',empleados_perfil:'Perfil de Empleados',tesoreria:'Tesorería',bancos:'Bancos y Cuentas',caja:'Caja y Movimientos',nomina:'Nómina RRHH',inventario:'Inventario',admin:'Administración',compras:'Compras (Proveedores)',retenciones:'Retenciones Emitidas',ats:'Generador ATS',ice:'Generador ICE',pos:'Punto de Venta',estadisticas:'Estadísticas'};
 // Nota: las funciones de migración de datos demo a IndexedDB (usuarios, empresas,
 // plan_cuentas, accesos_multiempresa, items_compra, hash de contraseñas) se eliminaron
 // porque esas tablas ya viven 100% en Supabase — mantenerlas era código muerto
@@ -1403,7 +1525,7 @@ async function cargarPerfilUsuario(){
   if(error||!data){console.error('No se pudo cargar el perfil de usuario',error);return false}
   CU=data;return true;
 }
-async function startApp(){await loadEmpresas();await applyRoleUI()}
+async function startApp(){await loadEmpresas();aplicarLogoSidebar(CEO?.logo_url,CEO?.nombre);await applyRoleUI()}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSidebar()});
 function ldtxt(t){const e=document.getElementById('ldt');if(e)e.textContent=t}
 function toast(msg,type){
@@ -1445,7 +1567,7 @@ async function loadEmpresas(){
   const listaEmps=emps||[];
   const sel=document.getElementById('empSel');
   sel.innerHTML=listaEmps.length?listaEmps.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join(''):'<option value="">Sin empresas asignadas</option>';
-  sel.onchange=async()=>{CE=sel.value||null;CEO=listaEmps.find(e=>e.id===CE)||null;await refresh();await applyRoleUI()};
+  sel.onchange=async()=>{CE=sel.value||null;CEO=listaEmps.find(e=>e.id===CE)||null;aplicarLogoSidebar(CEO?.logo_url,CEO?.nombre);await refresh();await applyRoleUI()};
   if(CU&&CU.rol==='Contador General'){
     if(listaEmps.length){CE=listaEmps[0].id;CEO=listaEmps[0];sel.value=CE}else{CE=null;CEO=null}
     sel.disabled=false;sel.title='Cambia entre las empresas que te han dado acceso';
@@ -1466,13 +1588,13 @@ function nav(s){
   document.querySelectorAll('.ni').forEach(x=>{if(x.textContent.trim().toLowerCase().startsWith((TITLES[s]||s).split(' ')[0].toLowerCase()))x.classList.add('on')});
   document.getElementById('tbtl').textContent=TITLES[s]||s;
   CS=s;closeSidebar();
-  const fn={dashboard:loadDash,cuentas:loadCuentas,asientos:loadAsi,conciliacion:()=>{},facturas:loadFac,cxc:loadCXCModule,crm:loadCRM,reportes:()=>rpt('balance',document.querySelector('.stab')),intercompany:loadIC,nomina:loadNom,inventario:loadInv,admin:loadAdmin,rubros:loadRubros,nomina_detalle:loadNominaDetalle,empleados_perfil:loadEmpleadosPerfil,tesoreria:loadTesoreria,bancos:loadBancos,caja:loadCaja,compras:loadCompras,retenciones:loadRetenciones,ats:loadATS,ice:loadICE,pos:loadPOS,estadisticas:loadEstadisticas};
+  const fn={dashboard:loadDash,cuentas:loadCuentas,asientos:loadAsi,conciliacion:()=>{},facturas:loadFac,cxc:loadCXCModule,crm:loadCRM,reportes:()=>rpt('balance',document.querySelector('.stab')),finanzas:loadFinanzas,intercompany:loadIC,nomina:loadNom,inventario:loadInv,admin:loadAdmin,rubros:loadRubros,nomina_detalle:loadNominaDetalle,empleados_perfil:loadEmpleadosPerfil,tesoreria:loadTesoreria,bancos:loadBancos,caja:loadCaja,compras:loadCompras,retenciones:loadRetenciones,ats:loadATS,ice:loadICE,pos:loadPOS,estadisticas:loadEstadisticas};
   fn[s]?.();
 }
 async function refresh(){nav(CS)}
 const NAV_VENTAS=['facturas','cxc','crm'];
 const NAV_INVENTARIO=['inventario','estadisticas'];
-const NAV_CONTABILIDAD=['cuentas','asientos','conciliacion','reportes','tesoreria','bancos','caja','compras','retenciones','ats','ice'];
+const NAV_CONTABILIDAD=['cuentas','asientos','conciliacion','reportes','finanzas','tesoreria','bancos','caja','compras','retenciones','ats','ice'];
 const NAV_NOMINA=['nomina','rubros','nomina_detalle','empleados_perfil'];
 async function applyRoleUI(){
   if(!CU)return;
@@ -1494,6 +1616,8 @@ async function applyRoleUI(){
     const perm=CU.permisos||{pos:true,ventas:true,inventario:true,contabilidad:true,nomina:true};
     aplicarBuckets(perm);
     document.querySelectorAll('.ni').forEach(b=>{if(/nav\('admin'\)/.test(b.getAttribute('onclick')||''))b.classList.remove('rhide')});
+    document.getElementById('miEmpresaBox')?.classList.remove('hidden');
+    loadMiEmpresa();
   }
   const empTab=document.querySelector('button[onclick="swAdmin(\'empresas\',this)"]');
   if(empTab)empTab.style.display=(CU.rol==='Super Administrador')?'':'none';
@@ -1551,7 +1675,7 @@ async function loadDash(){
   document.getElementById('dCRM').innerHTML=leads.length?leads.slice(0,5).map(l=>`<tr><td class="fw">${l.nombre}</td><td>${bdg(l.etapa)}</td><td class="tr fm" style="color:var(--ok5)">${fmt(l.valor)}</td></tr>`).join(''):'<tr><td colspan="3" class="te">Sin leads</td></tr>';
   await loadDashProfesional();
 }
-function swDash(tab,btn){['resumen','profesional'].forEach(t=>document.getElementById('dash-'+t)?.classList.add('hidden'));document.getElementById('dash-'+tab)?.classList.remove('hidden');document.querySelectorAll('#s-dashboard .stab').forEach(b=>b.classList.remove('on'));btn?.classList.add('on')}
+function swDash(tab,btn){['resumen','profesional','pro'].forEach(t=>document.getElementById('dash-'+t)?.classList.add('hidden'));document.getElementById('dash-'+tab)?.classList.remove('hidden');document.querySelectorAll('#s-dashboard .stab:not(.dpPer)').forEach(b=>b.classList.remove('on'));btn?.classList.add('on');if(tab==='pro')loadDashPro()}
 async function loadDashProfesional(){
   if(!CE)return;
   const{data:csData}=await supa.from('plan_cuentas').select('*').eq('empresa_id',CE);
@@ -1612,6 +1736,252 @@ async function loadDashProfesional(){
   const provs=(await supa.from('proveedores').select('*').eq('empresa_id',CE)).data||[];const pm={};provs.forEach(p=>pm[p.id]=p.nombre);
   const recientes=[...compras].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).slice(0,6);[...compras].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).slice(0,6);
   document.getElementById('dpGastosTabla').innerHTML=recientes.length?recientes.map(c=>`<tr><td>${c.concepto||pm[c.proveedor_id]||c.numero}</td><td style="color:var(--n5)">${c.categoria||'Otros'}</td><td class="tr fm">${fmt(c.total)}</td><td>${c.estado==='Pagado'?'<span class="badge bg">Pagado</span>':'<span class="badge ba">Pendiente</span>'}</td></tr>`).join(''):'<tr><td colspan="4" class="te">Sin gastos registrados</td></tr>';
+}
+
+/* DASHBOARD PROFESIONAL PRO — indicadores de productos, stock, balances y proveedores */
+let dpxPeriodo='dia',dpxProductosCache=[],dpxProveedoresCache=[];
+function swDashProPeriodo(p,btn){dpxPeriodo=p;document.querySelectorAll('.dpPer').forEach(b=>b.classList.remove('on'));btn?.classList.add('on');loadDashPro()}
+function rangoPeriodo(p){
+  const fin=new Date();let ini=new Date();
+  if(p==='dia'){ini.setHours(0,0,0,0)}
+  else if(p==='semana'){ini.setDate(ini.getDate()-7)}
+  else if(p==='mes'){ini.setDate(ini.getDate()-30)}
+  else{ini.setFullYear(ini.getFullYear()-1)}
+  return{ini,fin};
+}
+async function loadDashPro(){
+  if(!CE)return;
+  const{ini}=rangoPeriodo(dpxPeriodo);
+  const labelsPer={dia:'hoy',semana:'últimos 7 días',mes:'últimos 30 días',anio:'últimos 12 meses'};
+
+  const{data:facsD}=await supa.from('facturas').select('*').eq('empresa_id',CE);
+  const facs=(facsD||[]).filter(f=>f.estado!=='Anulada'&&new Date(f.created_at||f.fecha)>=ini);
+  const ingresos=facs.reduce((s,f)=>s+(f.total||0),0);
+  let unidades=0;const conteoProd={};
+  facs.forEach(f=>(f.items||[]).forEach(it=>{
+    unidades+=Number(it.cantidad)||0;
+    const key=it.producto_id||it.nombre;
+    if(!conteoProd[key])conteoProd[key]={nombre:it.nombre,unidades:0,ingresos:0};
+    conteoProd[key].unidades+=Number(it.cantidad)||0;
+    conteoProd[key].ingresos+=(Number(it.precio)||0)*(Number(it.cantidad)||0);
+  }));
+  document.getElementById('dpxVentas').textContent=facs.length;
+  document.getElementById('dpxVentasSub').textContent=labelsPer[dpxPeriodo];
+  document.getElementById('dpxIngresos').textContent=fmt(ingresos);
+  document.getElementById('dpxUnidades').textContent=unidades.toLocaleString();
+  document.getElementById('dpxTicket').textContent='ticket prom. '+fmt(facs.length?ingresos/facs.length:0);
+
+  // Productos + stock
+  const{data:prodsD}=await supa.from('productos').select('*').eq('empresa_id',CE).order('nombre');
+  dpxProductosCache=prodsD||[];
+  const valorInv=dpxProductosCache.reduce((s,p)=>s+(Number(p.costo)||0)*(Number(p.stock)||0),0);
+  const critico=dpxProductosCache.filter(p=>(p.stock||0)<=0||(p.stock||0)<=(p.stock_min||0)).length;
+  document.getElementById('dpxInvVal').textContent=fmt(valorInv);
+  document.getElementById('dpxStockCrit').textContent=critico;
+  document.getElementById('dpxStockSub').textContent=critico===1?'producto necesita atención':'productos necesitan atención';
+  renderDpxProductos(dpxProductosCache);
+
+  // Proveedores + compras del período
+  const{data:provD}=await supa.from('proveedores').select('*').eq('empresa_id',CE).order('nombre');
+  const{data:comprasD}=await supa.from('compras').select('*').eq('empresa_id',CE);
+  const compras=(comprasD||[]).filter(c=>new Date(c.created_at||c.fecha)>=ini);
+  const porProv={};
+  compras.forEach(c=>{if(!c.proveedor_id)return;if(!porProv[c.proveedor_id])porProv[c.proveedor_id]={total:0,n:0};porProv[c.proveedor_id].total+=c.total||0;porProv[c.proveedor_id].n++});
+  dpxProveedoresCache=(provD||[]).map(p=>({...p,totalComprado:porProv[p.id]?.total||0,nCompras:porProv[p.id]?.n||0})).sort((a,b)=>b.totalComprado-a.totalComprado);
+  renderDpxProveedores(dpxProveedoresCache);
+
+  // Gráfico: ventas por día dentro del período
+  const porDia={};
+  facs.forEach(f=>{const d=(f.fecha||'').slice(0,10);if(!d)return;porDia[d]=(porDia[d]||0)+(f.total||0)});
+  const diasOrdenados=Object.keys(porDia).sort();
+  if(window._chartVentasPer){try{window._chartVentasPer.destroy()}catch(e){}}
+  const ctxV=document.getElementById('chartVentasPeriodo');
+  if(ctxV&&typeof Chart!=='undefined'){
+    try{window._chartVentasPer=new Chart(ctxV,{type:'line',data:{labels:diasOrdenados.length?diasOrdenados:['Sin datos'],datasets:[{label:'Ventas',data:diasOrdenados.length?diasOrdenados.map(d=>porDia[d]):[0],borderColor:'#2D72D2',backgroundColor:'rgba(45,114,210,.15)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}})}catch(e){console.warn('No se pudo dibujar el gráfico de ventas',e)}
+  }
+
+  // Gráfico: top 5 productos vendidos
+  const topProd=Object.values(conteoProd).sort((a,b)=>b.unidades-a.unidades).slice(0,5);
+  if(window._chartTopProd){try{window._chartTopProd.destroy()}catch(e){}}
+  const ctxT=document.getElementById('chartTopProductos');
+  if(ctxT&&typeof Chart!=='undefined'){
+    try{window._chartTopProd=new Chart(ctxT,{type:'bar',indexAxis:'y',data:{labels:topProd.length?topProd.map(p=>p.nombre):['Sin ventas'],datasets:[{label:'Unidades',data:topProd.length?topProd.map(p=>p.unidades):[0],backgroundColor:'#0F6E56',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}})}catch(e){console.warn('No se pudo dibujar el gráfico de top productos',e)}
+  }
+}
+function renderDpxProductos(lista){
+  document.getElementById('dpxTablaProductos').innerHTML=lista.length?lista.map(p=>{
+    const sinS=(p.stock||0)<=0,bajo=!sinS&&(p.stock||0)<=(p.stock_min||0);
+    const estado=sinS?'<span class="badge br">Sin stock</span>':bajo?'<span class="badge ba">Bajo mínimo</span>':'<span class="badge bg">OK</span>';
+    return`<tr><td class="fm" style="font-size:11.5px;color:var(--n5)">${p.codigo||'—'}</td><td class="fw">${p.nombre}</td><td class="tr fm" style="color:${sinS?'var(--er5)':bajo?'var(--am5)':'inherit'}">${p.stock||0}</td><td class="tr" style="color:var(--n5)">${p.stock_min||0}</td><td class="tr fm">${fmt(p.precio||0)}</td><td>${estado}</td></tr>`;
+  }).join(''):'<tr><td colspan="6" class="te">Sin productos</td></tr>';
+}
+function filtrarDpxProductos(q){
+  q=(q||'').toLowerCase().trim();
+  const filtrados=!q?dpxProductosCache:dpxProductosCache.filter(p=>(p.nombre||'').toLowerCase().includes(q)||(p.codigo||'').toLowerCase().includes(q));
+  renderDpxProductos(filtrados);
+}
+function renderDpxProveedores(lista){
+  document.getElementById('dpxTablaProveedores').innerHTML=lista.length?lista.map(p=>`<tr><td class="fw">${p.nombre}</td><td class="fm" style="font-size:11.5px;color:var(--n5)">${p.ruc||'—'}</td><td class="tr">${p.nCompras}</td><td class="tr fm" style="color:var(--ok5)">${fmt(p.totalComprado)}</td></tr>`).join(''):'<tr><td colspan="4" class="te">Sin proveedores</td></tr>';
+}
+function filtrarDpxProveedores(q){
+  q=(q||'').toLowerCase().trim();
+  const filtrados=!q?dpxProveedoresCache:dpxProveedoresCache.filter(p=>(p.nombre||'').toLowerCase().includes(q)||(p.ruc||'').toLowerCase().includes(q));
+  renderDpxProveedores(filtrados);
+}
+
+/* ===== FINANZAS PRO ===== */
+function swFinanzas(tab,btn){
+  ['balance','flujo','ratios','equilibrio','activos','cxp'].forEach(t=>document.getElementById('fz-'+t)?.classList.toggle('hidden',t!==tab));
+  document.querySelectorAll('#s-finanzas .stab').forEach(b=>b.classList.remove('on'));btn?.classList.add('on');
+  const fns={balance:loadFzBalance,flujo:loadFzFlujo,ratios:loadFzRatios,equilibrio:loadFzEquilibrio,activos:loadFzActivos,cxp:loadFzCXP};
+  fns[tab]?.();
+}
+async function loadFinanzas(){await loadFzBalance()}
+
+async function loadFzBalance(){
+  if(!CE)return;
+  const{data:csData}=await supa.from('plan_cuentas').select('*').eq('empresa_id',CE);
+  const cs=csData||[];
+  const A=cs.filter(c=>c.clase===1),P=cs.filter(c=>c.clase===2),Pa=cs.filter(c=>c.clase===3);
+  const sA=A.reduce((s,c)=>s+(c.saldo||0),0),sP=P.reduce((s,c)=>s+(c.saldo||0),0),sPa=Pa.reduce((s,c)=>s+(c.saldo||0),0);
+  document.getElementById('fzBalActivos').innerHTML=`<tr class="rs"><td colspan="2">ACTIVOS</td></tr>${A.map(c=>`<tr class="rsb"><td>${c.codigo} — ${c.nombre}</td><td>${fmt(c.saldo||0)}</td></tr>`).join('')||'<tr class="rsb"><td colspan="2" style="color:var(--n4)">Sin cuentas</td></tr>'}<tr class="rst"><td>TOTAL ACTIVOS</td><td>${fmt(sA)}</td></tr>`;
+  document.getElementById('fzBalPasivos').innerHTML=`<tr class="rs"><td colspan="2">PASIVOS</td></tr>${P.map(c=>`<tr class="rsb"><td>${c.codigo} — ${c.nombre}</td><td>${fmt(c.saldo||0)}</td></tr>`).join('')||'<tr class="rsb"><td colspan="2" style="color:var(--n4)">Sin cuentas</td></tr>'}<tr class="rst"><td>Total pasivos</td><td>${fmt(sP)}</td></tr><tr><td colspan="2" style="padding:8px 0"></td></tr><tr class="rs"><td colspan="2">PATRIMONIO</td></tr>${Pa.map(c=>`<tr class="rsb"><td>${c.codigo} — ${c.nombre}</td><td>${fmt(c.saldo||0)}</td></tr>`).join('')||'<tr class="rsb"><td colspan="2" style="color:var(--n4)">Sin cuentas</td></tr>'}<tr class="rst"><td>Total patrimonio</td><td>${fmt(sPa)}</td></tr><tr><td colspan="2" style="padding:8px 0"></td></tr><tr class="rtt"><td>PASIVOS + PATRIMONIO</td><td>${fmt(sP+sPa)}</td></tr>`;
+}
+
+async function loadFzFlujo(){
+  if(!CE)return;
+  const{data:mcD}=await supa.from('movimientos_caja').select('*').eq('empresa_id',CE);
+  const{data:mbD}=await supa.from('movimientos_banco').select('*').eq('empresa_id',CE);
+  const movs=[...(mcD||[]).map(m=>({...m,origen:'Caja'})),...(mbD||[]).map(m=>({...m,origen:'Banco'}))];
+  const ingresos=movs.filter(m=>m.tipo==='ingreso'||m.tipo==='apertura'||m.tipo==='deposito');
+  const egresos=movs.filter(m=>m.tipo==='egreso');
+  const totIn=ingresos.reduce((s,m)=>s+(m.monto||0),0),totOut=egresos.reduce((s,m)=>s+(m.monto||0),0);
+  const flujoNeto=totIn-totOut;
+  const grupo=(lista,tit)=>`<tr class="rs"><td colspan="2">${tit}</td></tr>${lista.length?lista.slice(0,25).map(m=>`<tr class="rsb"><td>${(m.fecha||'').slice(0,10)} — ${m.concepto||m.referencia||m.tipo} <small style="color:var(--n4)">(${m.origen})</small></td><td>${fmt(m.monto||0)}</td></tr>`).join(''):'<tr class="rsb"><td colspan="2" style="color:var(--n4)">Sin movimientos</td></tr>'}`;
+  document.getElementById('fzFlujoTabla').innerHTML=`${grupo(ingresos,'ENTRADAS DE EFECTIVO')}<tr class="rst"><td>Total entradas</td><td>${fmt(totIn)}</td></tr><tr><td colspan="2" style="padding:8px 0"></td></tr>${grupo(egresos,'SALIDAS DE EFECTIVO')}<tr class="rst"><td>Total salidas</td><td>(${fmt(totOut)})</td></tr><tr><td colspan="2" style="padding:10px 0"></td></tr><tr class="rtt" style="color:${flujoNeto>=0?'var(--ok5)':'var(--er5)'}"><td>FLUJO NETO DE EFECTIVO</td><td>${fmt(flujoNeto)}</td></tr>`;
+}
+
+async function loadFzRatios(){
+  if(!CE)return;
+  const{data:csData}=await supa.from('plan_cuentas').select('*').eq('empresa_id',CE);
+  const cs=csData||[];
+  const activoCorriente=cs.filter(c=>c.clase===1&&c.tipo==='Corriente').reduce((s,c)=>s+(c.saldo||0),0)||cs.filter(c=>c.clase===1).reduce((s,c)=>s+(c.saldo||0),0)*0.6;
+  const inventarioVal=(dpxProductosCache.length?dpxProductosCache:(await supa.from('productos').select('costo,stock').eq('empresa_id',CE)).data||[]).reduce((s,p)=>s+(Number(p.costo)||0)*(Number(p.stock)||0),0);
+  const pasivoCorriente=cs.filter(c=>c.clase===2&&c.tipo==='Corriente').reduce((s,c)=>s+(c.saldo||0),0)||cs.filter(c=>c.clase===2).reduce((s,c)=>s+(c.saldo||0),0)*0.7;
+  const totalActivo=cs.filter(c=>c.clase===1).reduce((s,c)=>s+(c.saldo||0),0);
+  const totalPasivo=cs.filter(c=>c.clase===2).reduce((s,c)=>s+(c.saldo||0),0);
+  const totalPatrimonio=cs.filter(c=>c.clase===3).reduce((s,c)=>s+(c.saldo||0),0);
+  const totalIngreso=cs.filter(c=>c.clase===4).reduce((s,c)=>s+(c.saldo||0),0);
+  const totalGasto=cs.filter(c=>c.clase===5).reduce((s,c)=>s+(c.saldo||0),0);
+  const utilidad=totalIngreso-totalGasto;
+  const razonCorriente=pasivoCorriente>0?(activoCorriente/pasivoCorriente):0;
+  const pruebaAcida=pasivoCorriente>0?((activoCorriente-inventarioVal)/pasivoCorriente):0;
+  const apalancamiento=totalPatrimonio>0?(totalPasivo/totalPatrimonio):0;
+  const endeudamientoActivo=totalActivo>0?(totalPasivo/totalActivo):0;
+  const roe=totalPatrimonio>0?(utilidad/totalPatrimonio*100):0;
+  const roa=totalActivo>0?(utilidad/totalActivo*100):0;
+  const margenNeto=totalIngreso>0?(utilidad/totalIngreso*100):0;
+  const{data:cxcD}=await supa.from('cargos').select('*').eq('empresa_id',CE);
+  const cxcPend=(cxcD||[]).filter(c=>c.estado!=='Pagado').reduce((s,c)=>s+((c.monto||0)-(c.pagado||0)),0);
+  const rotacionCartera=totalIngreso>0?(cxcPend/totalIngreso*365):0;
+  const row=(l,v)=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--n1)"><span style="color:var(--n5)">${l}</span><strong>${v}</strong></div>`;
+  document.getElementById('fzRatiosLiq').innerHTML=row('Razón corriente',razonCorriente.toFixed(2)+'x')+row('Prueba ácida',pruebaAcida.toFixed(2)+'x')+`<p style="font-size:11px;color:var(--n4);margin-top:8px">Ideal ≥ 1.5x. Mide capacidad de pagar deudas a corto plazo.</p>`;
+  document.getElementById('fzRatiosDeuda').innerHTML=row('Apalancamiento (pasivo/patrimonio)',apalancamiento.toFixed(2)+'x')+row('Endeudamiento del activo',(endeudamientoActivo*100).toFixed(1)+'%')+`<p style="font-size:11px;color:var(--n4);margin-top:8px">Qué % de los activos está financiado con deuda.</p>`;
+  document.getElementById('fzRatiosRent').innerHTML=row('ROE (rentabilidad patrimonio)',roe.toFixed(1)+'%')+row('ROA (rentabilidad activos)',roa.toFixed(1)+'%')+row('Margen neto',margenNeto.toFixed(1)+'%')+`<p style="font-size:11px;color:var(--n4);margin-top:8px">Basado en utilidad acumulada del período contable.</p>`;
+  document.getElementById('fzRatiosRot').innerHTML=row('Días promedio de cobro',rotacionCartera.toFixed(0)+' días')+row('Cartera pendiente',fmt(cxcPend))+`<p style="font-size:11px;color:var(--n4);margin-top:8px">Menos días = cobras más rápido a tus clientes.</p>`;
+}
+
+async function loadFzEquilibrio(){
+  if(!CE)return;
+  const{data:csData}=await supa.from('plan_cuentas').select('*').eq('empresa_id',CE);
+  const cs=csData||[];
+  const gastos=cs.filter(c=>c.clase===5);
+  const ingresos=cs.filter(c=>c.clase===4).reduce((s,c)=>s+(c.saldo||0),0);
+  const CF=gastos.filter(c=>c.tipo_costo==='Fijo').reduce((s,c)=>s+(c.saldo||0),0);
+  const CV=gastos.filter(c=>c.tipo_costo!=='Fijo').reduce((s,c)=>s+(c.saldo||0),0);
+  const margenContrib=ingresos>0?((ingresos-CV)/ingresos):0;
+  const puntoEquilibrio=margenContrib>0?(CF/margenContrib):0;
+  document.getElementById('fzCF').textContent=fmt(CF);
+  document.getElementById('fzCV').textContent=fmt(CV);
+  document.getElementById('fzMC').textContent=(margenContrib*100).toFixed(1)+'%';
+  document.getElementById('fzPE').textContent=fmt(puntoEquilibrio);
+  document.getElementById('fzGastosClas').innerHTML=gastos.length?gastos.map(c=>`<tr><td>${c.codigo} — ${c.nombre}</td><td>${c.tipo_costo==='Fijo'?'<span class="badge ba">Fijo</span>':'<span class="badge bg">Variable</span>'}</td><td class="tr fm">${fmt(c.saldo||0)}</td><td><button class="btn bo bsm" onclick="toggleTipoCosto('${c.id}','${c.tipo_costo==='Fijo'?'Variable':'Fijo'}')">Cambiar</button></td></tr>`).join(''):'<tr><td colspan="4" class="te">Sin cuentas de gasto</td></tr>';
+}
+async function toggleTipoCosto(cuentaId,nuevoTipo){
+  await supa.from('plan_cuentas').update({tipo_costo:nuevoTipo}).eq('id',cuentaId);
+  toast('Clasificación actualizada','ok');loadFzEquilibrio();
+}
+
+function calcDepreciacion(a){
+  const anios=Math.max(a.vida_util_anios||5,1);
+  const base=Math.max((a.valor_compra||0)-(a.valor_residual||0),0);
+  const depAnual=base/anios;
+  const depMensual=depAnual/12;
+  const meses=Math.max(0,Math.floor((new Date()-new Date(a.fecha_compra))/(1000*60*60*24*30.44)));
+  const depAcum=Math.min(depMensual*meses,base);
+  const valorLibros=(a.valor_compra||0)-depAcum;
+  return{depMensual,depAcum,valorLibros};
+}
+async function loadFzActivos(){
+  if(!CE)return;
+  const{data}=await supa.from('activos_fijos').select('*').eq('empresa_id',CE).order('fecha_compra',{ascending:false});
+  const activos=data||[];
+  let totalValor=0,totalDep=0,totalLibros=0;
+  document.getElementById('fzActTabla').innerHTML=activos.length?activos.map(a=>{
+    const{depMensual,depAcum,valorLibros}=calcDepreciacion(a);
+    totalValor+=a.valor_compra||0;totalDep+=depAcum;totalLibros+=valorLibros;
+    return`<tr><td class="fw">${a.nombre}<div style="font-size:11px;color:var(--n5)">${a.categoria||''}</div></td><td>${(a.fecha_compra||'').slice(0,10)}</td><td class="tr fm">${fmt(a.valor_compra||0)}</td><td class="tr">${a.vida_util_anios} años</td><td class="tr fm">${fmt(depMensual)}</td><td class="tr fm" style="color:var(--am5)">${fmt(depAcum)}</td><td class="tr fm" style="color:var(--ok5)">${fmt(valorLibros)}</td><td><button class="btn bd bsm" onclick="deleteActivo('${a.id}')">🗑️</button></td></tr>`;
+  }).join(''):'<tr><td colspan="8" class="te">Sin activos registrados</td></tr>';
+  document.getElementById('fzActValor').textContent=fmt(totalValor);
+  document.getElementById('fzActDepAcum').textContent=fmt(totalDep);
+  document.getElementById('fzActLibros').textContent=fmt(totalLibros);
+}
+async function saveActivo(){
+  const nombre=document.getElementById('af_nom').value.trim();
+  const fecha=document.getElementById('af_fec').value;
+  const valor=parseFloat(document.getElementById('af_val').value)||0;
+  if(!nombre||!fecha||valor<=0)return toast('Nombre, fecha y valor de compra son requeridos','er');
+  const btn=document.querySelector('#mActivo .bp');if(btn){btn.disabled=true;btn.textContent='Guardando...'}
+  try{
+    const payload={empresa_id:CE,nombre,categoria:document.getElementById('af_cat').value,fecha_compra:fecha,valor_compra:valor,valor_residual:parseFloat(document.getElementById('af_res').value)||0,vida_util_anios:parseInt(document.getElementById('af_vida').value)||5};
+    const{error}=await supa.from('activos_fijos').insert(payload);
+    if(error)throw error;
+    closeM('mActivo');toast('Activo registrado','ok');
+    document.getElementById('af_nom').value='';document.getElementById('af_val').value='';document.getElementById('af_res').value='0';document.getElementById('af_vida').value='5';document.getElementById('af_fec').value='';
+    await loadFzActivos();
+  }catch(e){console.error('Error al guardar activo:',e);toast('Error al guardar: '+e.message,'er')}
+  finally{if(btn){btn.disabled=false;btn.textContent='💾 Guardar'}}
+}
+async function deleteActivo(id){
+  if(!confirm('¿Eliminar este activo fijo?'))return;
+  const{error}=await supa.from('activos_fijos').delete().eq('id',id);
+  if(error){toast('No se pudo eliminar','er');return}
+  toast('Eliminado','wn');await loadFzActivos();
+}
+
+function diasEntre(f1,f2){return Math.floor((f2-f1)/(1000*60*60*24))}
+async function loadFzCXP(){
+  if(!CE)return;
+  const{data}=await supa.from('compras').select('*').eq('empresa_id',CE).neq('estado','Pagado');
+  const{data:provD}=await supa.from('proveedores').select('id,nombre').eq('empresa_id',CE);
+  const pm={};(provD||[]).forEach(p=>pm[p.id]=p.nombre);
+  const hoy=new Date();
+  const filas=(data||[]).map(c=>{
+    const venc=c.fecha_vencimiento?new Date(c.fecha_vencimiento):new Date(c.fecha||c.created_at);
+    const dias=diasEntre(venc,hoy);
+    return{...c,proveedorNom:pm[c.proveedor_id]||c.concepto||'—',dias,venc};
+  }).sort((a,b)=>b.dias-a.dias);
+  let b30=0,b60=0,b90=0,bVenc=0,total=0;
+  filas.forEach(f=>{const m=f.total||0;total+=m;if(f.dias<=30)b30+=m;else if(f.dias<=60)b60+=m;else if(f.dias<=90)b90+=m;else bVenc+=m});
+  document.getElementById('fzCxpTotal').textContent=fmt(total);
+  document.getElementById('fzCxp30').textContent=fmt(b30);
+  document.getElementById('fzCxp60').textContent=fmt(b60);
+  document.getElementById('fzCxp90').textContent=fmt(b90);
+  document.getElementById('fzCxpVenc').textContent=fmt(bVenc);
+  document.getElementById('fzCxpTabla').innerHTML=filas.length?filas.map(f=>{
+    const badge=f.dias>90?'<span class="badge br">Vencido</span>':f.dias>60?'<span class="badge ba">Por vencer</span>':'<span class="badge bg">Al día</span>';
+    return`<tr><td>${f.proveedorNom}</td><td>${f.numero||f.concepto||'—'}</td><td>${f.venc.toISOString().slice(0,10)}</td><td class="tr">${f.dias}</td><td class="tr fm">${fmt(f.total||0)}</td><td>${badge}</td></tr>`;
+  }).join(''):'<tr><td colspan="6" class="te">Sin cuentas pendientes</td></tr>';
 }
 
 /* PLAN DE CUENTAS (Supabase) */
@@ -2625,6 +2995,20 @@ async function delFac(id){
   if(error){toast('No se pudo eliminar la factura','er');return}
   toast('Eliminada','wn');await loadFac();
 }
+async function cargarLogoBase64(){
+  if(!CEO?.logo_url)return null;
+  try{
+    const res=await fetch(CEO.logo_url);
+    const blob=await res.blob();
+    if(blob.type==='image/svg+xml')return null; // jsPDF no soporta SVG directo
+    return await new Promise((resolve,reject)=>{
+      const r=new FileReader();
+      r.onload=()=>resolve(r.result);
+      r.onerror=reject;
+      r.readAsDataURL(blob);
+    });
+  }catch(e){console.error('No se pudo cargar el logo para el PDF:',e);return null}
+}
 async function pdfFac(id){
   const{data:f,error}=await supa.from('facturas').select('*').eq('id',id).maybeSingle();
   if(error||!f)return toast('No se pudo cargar la factura','er');
@@ -2633,7 +3017,9 @@ async function pdfFac(id){
   const items=itemsD||[];
   if(typeof window.jspdf==='undefined'){toast('jsPDF no cargó, usando impresión','wn');window.print();return}
   const{jsPDF}=window.jspdf;const doc=new jsPDF();
+  const logoB64=await cargarLogoBase64();
   doc.setFillColor(30,86,168);doc.rect(0,0,210,35,'F');
+  if(logoB64){try{doc.addImage(logoB64,15,7,20,20);}catch(e){console.error('No se pudo dibujar el logo:',e)}}
   doc.setTextColor(255);doc.setFontSize(18);doc.setFont(undefined,'bold');doc.text('FACTURA ELECTRÓNICA',105,14,{align:'center'});
   doc.setFontSize(11);doc.setFont(undefined,'normal');doc.text(CEO?.nombre||'Empresa',105,22,{align:'center'});
   doc.text(`RUC: ${CEO?.ruc||'—'} | ${CEO?.regimen||'General'}`,105,29,{align:'center'});
@@ -2745,8 +3131,10 @@ function imprimirRpt(){document.getElementById('pdfHdr').style.display='block';w
 async function exportPDF(){
   if(typeof window.jspdf==='undefined')return toast('jsPDF no disponible, usa Imprimir','wn');
   const{jsPDF}=window.jspdf;const doc=new jsPDF();
+  const logoB64=await cargarLogoBase64();
   const titulo=document.getElementById('rTitle').textContent;
   doc.setFillColor(30,86,168);doc.rect(0,0,210,30,'F');
+  if(logoB64){try{doc.addImage(logoB64,15,5,18,18);}catch(e){console.error('No se pudo dibujar el logo:',e)}}
   doc.setTextColor(255);doc.setFontSize(15);doc.setFont(undefined,'bold');doc.text(titulo,105,12,{align:'center'});
   doc.setFontSize(10);doc.setFont(undefined,'normal');doc.text(CEO?.nombre||'Empresa',105,20,{align:'center'});
   doc.text(`RUC: ${CEO?.ruc||'—'} · Fecha: ${new Date().toLocaleDateString('es-EC')}`,105,27,{align:'center'});
@@ -3193,6 +3581,52 @@ async function delUsuario(id){
   const out=await llamarAdminUsers({action:'delete',id});
   if(!out.ok){toast(out.error||'No se pudo eliminar el usuario','er');return}
   toast('Eliminado','wn');await loadAdmin();
+}
+async function loadMiEmpresa(){
+  if(!CE)return;
+  const{data:e}=await supa.from('empresas').select('nombre,logo_url').eq('id',CE).maybeSingle();
+  if(!e)return;
+  document.getElementById('me_nom').value=e.nombre||'';
+  const prev=document.getElementById('me_logo_preview');
+  if(e.logo_url){prev.src=e.logo_url;prev.style.display='block'}else{prev.style.display='none'}
+  aplicarLogoSidebar(e.logo_url,e.nombre);
+}
+function aplicarLogoSidebar(logoUrl,nombre){
+  const box=document.querySelector('.sb-logo .ico');
+  if(!box)return;
+  if(logoUrl){box.innerHTML=`<img src="${logoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:10px">`}
+  else{box.innerHTML='📊'}
+  if(nombre)document.querySelector('.sb-logo h1').textContent=nombre;
+}
+async function saveMiEmpresa(){
+  const nombre=document.getElementById('me_nom').value.trim();
+  if(!nombre)return toast('El nombre es requerido','er');
+  const fileInput=document.getElementById('me_logo_file');
+  const file=fileInput.files[0];
+  const btn=document.querySelector('#miEmpresaBox .bp');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...'}
+  try{
+    let logoUrl=null;
+    if(file){
+      if(file.size>2*1024*1024)throw new Error('El logo no puede pesar más de 2MB');
+      const ext=file.name.split('.').pop().toLowerCase();
+      const path=`${CE}/logo.${ext}`;
+      const{error:upErr}=await supa.storage.from('logos').upload(path,file,{upsert:true,cacheControl:'3600'});
+      if(upErr)throw upErr;
+      const{data:pub}=supa.storage.from('logos').getPublicUrl(path);
+      logoUrl=pub.publicUrl+'?t='+Date.now();
+    }
+    const{error}=await supa.rpc('actualizar_mi_empresa',{p_nombre:nombre,p_logo_url:logoUrl});
+    if(error)throw error;
+    toast('Empresa actualizada','ok');
+    fileInput.value='';
+    await loadMiEmpresa();
+  }catch(e){
+    console.error('Error al guardar mi empresa:',e);
+    toast('Error al guardar: '+e.message,'er');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='💾 Guardar cambios'}
+  }
 }
 async function editEmpresa(id){
   const{data:e,error}=await supa.from('empresas').select('*').eq('id',id).maybeSingle();
