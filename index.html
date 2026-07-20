@@ -471,6 +471,7 @@ table.t tbody tr:hover{background:var(--b0)}
       </div>
     </div>
   </div>
+</section>
 <section id="s-pos" class="pg hidden">
   <div class="pg-hd" style="display:flex;align-items:flex-start;justify-content:space-between">
     <div><h2>Punto de Venta</h2><p id="posSubt">Cargando...</p></div>
@@ -757,10 +758,6 @@ table.t tbody tr:hover{background:var(--b0)}
   </div>
 </section>
 <!-- INVENTARIO -->
-<section id="s-inventario" class="pg hidden">
-  <div class="pg-hd" style="display:flex;align-items:flex-start;justify-content:space-between"><div><h2>Inventario</h2><p>Catálogo de productos con edición completa</p></div><div class="row"><button class="btn bo no-print" onclick="abrirScanner('inventario')">📷 Escanear código</button><button class="btn bp no-print" onclick="openM('mProd')">+ Nuevo Producto</button></div></div>
-  <div class="card"><div class="tw"><table class="t"><thead><tr><th>Código</th><th>Producto</th><th class="tr">Precio</th><th class="tr">Costo</th><th>Stock</th><th class="tr">Valor</th><th></th></tr></thead><tbody id="tInv"><tr><td colspan="7" class="te">Sin productos</td></tr></tbody></table></div></div>
-</section>
 <!-- ADMIN -->
 <section id="s-admin" class="pg hidden">
   <div class="pg-hd"><h2>Administración</h2><p>Usuarios, empresas y configuración</p></div>
@@ -1588,7 +1585,7 @@ function nav(s){
   document.querySelectorAll('.ni').forEach(x=>{if(x.textContent.trim().toLowerCase().startsWith((TITLES[s]||s).split(' ')[0].toLowerCase()))x.classList.add('on')});
   document.getElementById('tbtl').textContent=TITLES[s]||s;
   CS=s;closeSidebar();
-  const fn={dashboard:loadDash,cuentas:loadCuentas,asientos:loadAsi,conciliacion:()=>{},facturas:loadFac,cxc:loadCXCModule,crm:loadCRM,reportes:()=>rpt('balance',document.querySelector('.stab')),finanzas:loadFinanzas,intercompany:loadIC,nomina:loadNom,inventario:loadInv,admin:loadAdmin,rubros:loadRubros,nomina_detalle:loadNominaDetalle,empleados_perfil:loadEmpleadosPerfil,tesoreria:loadTesoreria,bancos:loadBancos,caja:loadCaja,compras:loadCompras,retenciones:loadRetenciones,ats:loadATS,ice:loadICE,pos:loadPOS,estadisticas:loadEstadisticas};
+  const fn={dashboard:loadDash,cuentas:loadCuentas,asientos:loadAsi,conciliacion:()=>{},facturas:loadFac,cxc:loadCXCModule,crm:loadCRM,reportes:()=>rpt('balance',document.querySelector('.stab')),finanzas:loadFinanzas,intercompany:loadIC,nomina:loadNom,inventario:renderInvDashboard,admin:loadAdmin,rubros:loadRubros,nomina_detalle:loadNominaDetalle,empleados_perfil:loadEmpleadosPerfil,tesoreria:loadTesoreria,bancos:loadBancos,caja:loadCaja,compras:loadCompras,retenciones:loadRetenciones,ats:loadATS,ice:loadICE,pos:loadPOS,estadisticas:loadEstadisticas};
   fn[s]?.();
 }
 async function refresh(){nav(CS)}
