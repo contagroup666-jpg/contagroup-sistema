@@ -379,6 +379,7 @@ table.t tbody tr:hover{background:var(--b0)}
     <button class="ni" onclick="nav('ats')"><span class="ic">📊</span>Generador ATS</button>
     <button class="ni" onclick="nav('ice')"><span class="ic">🧊</span>Generador ICE</button>
     <button class="ni" onclick="nav('admin')"><span class="ic">⚙️</span>Administración</button>
+    <button class="ni" onclick="nav('auditoria')"><span class="ic">🕵️</span>Auditoría</button>
   </nav>
   <div class="sb-usr"><div class="av" id="uav">A</div><div style="flex:1;min-width:0"><div class="usr-n" id="uname">—</div><div class="usr-r" id="urole">—</div></div><button class="btn-lo" onclick="logout()" title="Salir">⏻</button></div>
 </aside>
@@ -721,6 +722,17 @@ table.t tbody tr:hover{background:var(--b0)}
     </div>
     <div class="card" style="margin-top:14px"><div class="tw"><table class="t"><thead><tr><th>Proveedor</th><th>Comprobante</th><th>Vencimiento</th><th class="tr">Días</th><th class="tr">Monto</th><th>Estado</th></tr></thead><tbody id="fzCxpTabla"><tr><td colspan="6" class="te">Sin cuentas pendientes</td></tr></tbody></table></div></div>
   </div>
+</section>
+<!-- AUDITORÍA -->
+<section id="s-auditoria" class="pg hidden">
+  <div class="pg-hd"><h2>🕵️ Auditoría</h2><p>Historial de acciones: quién hizo qué y cuándo</p></div>
+  <div class="row" style="gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <select id="au_tabla" class="fc" style="width:180px" onchange="loadAuditoria()"><option value="">Todas las acciones</option><option value="usuarios">Usuarios</option><option value="facturas">Facturas</option><option value="asientos">Asientos contables</option><option value="compras">Compras</option><option value="proveedores">Proveedores</option><option value="sesion">Inicios de sesión</option></select>
+    <select id="au_accion" class="fc" style="width:150px" onchange="loadAuditoria()"><option value="">Toda acción</option><option value="crear">Crear</option><option value="editar">Editar</option><option value="eliminar">Eliminar</option><option value="login">Login</option></select>
+    <input type="date" id="au_desde" class="fc" style="width:150px" onchange="loadAuditoria()">
+    <input type="date" id="au_hasta" class="fc" style="width:150px" onchange="loadAuditoria()">
+  </div>
+  <div class="card"><div class="tw"><table class="t"><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Módulo</th><th>Detalle</th><th></th></tr></thead><tbody id="tAuditoria"><tr><td colspan="6" class="te">Cargando...</td></tr></tbody></table></div></div>
 </section>
 <!-- INTERCOMPANY IA -->
 <section id="s-intercompany" class="pg hidden">
@@ -1108,6 +1120,8 @@ table.t tbody tr:hover{background:var(--b0)}
   <div class="fg"><label class="fl2">Email</label><input type="email" id="aux_ema" class="fc"></div>
   <div class="fg"><label class="fl2">Contraseña</label><input type="password" id="aux_pwd" class="fc" placeholder="Mínimo 8 caracteres"></div>
 </div><div class="mf"><button class="btn bo" onclick="closeM('mAuxiliar')">Cancelar</button><button class="btn bp" onclick="crearContadorAuxiliar()">💾 Crear auxiliar</button></div></div></div>
+
+<div class="mo" id="mAuditoriaDetalle"><div class="mb"><div class="mh"><h3>🔍 Detalle del cambio</h3><button class="mx" onclick="closeM('mAuditoriaDetalle')">✕</button></div><div class="mc" id="auDetalleBody"></div><div class="mf"><button class="btn bo" onclick="closeM('mAuditoriaDetalle')">Cerrar</button></div></div></div>
 
 <!-- Modal Compra -->
 <div class="mo" id="mCompra"><div class="mb lg"><div class="mh"><h3>🛒 <span id="mc_ttl">Nueva Compra</span></h3><button class="mx" onclick="closeM('mCompra')">✕</button></div><div class="mc">
@@ -1499,7 +1513,7 @@ supa.auth.onAuthStateChange((event)=>{
    APP ENGINE
 ═══════════════════════════════════════ */
 let DB=null,CE=null,CEO=null,CS='dashboard',icMsgs=[],CU=null;
-const TITLES={dashboard:'Dashboard',cuentas:'Plan de Cuentas',asientos:'Asientos',conciliacion:'Conciliación Bancaria',facturas:'Facturas',cxc:'Cuentas por Cobrar',crm:'CRM Pipeline',reportes:'Reportes PDF',finanzas:'Finanzas Pro',intercompany:'Intercompany IA',rubros:'Rubros de Nómina',nomina_detalle:'Rol de Pago Detallado',empleados_perfil:'Perfil de Empleados',tesoreria:'Tesorería',bancos:'Bancos y Cuentas',caja:'Caja y Movimientos',nomina:'Nómina RRHH',inventario:'Inventario',admin:'Administración',compras:'Compras (Proveedores)',retenciones:'Retenciones Emitidas',ats:'Generador ATS',ice:'Generador ICE',pos:'Punto de Venta',estadisticas:'Estadísticas'};
+const TITLES={dashboard:'Dashboard',cuentas:'Plan de Cuentas',asientos:'Asientos',conciliacion:'Conciliación Bancaria',facturas:'Facturas',cxc:'Cuentas por Cobrar',crm:'CRM Pipeline',reportes:'Reportes PDF',finanzas:'Finanzas Pro',auditoria:'Auditoría',intercompany:'Intercompany IA',rubros:'Rubros de Nómina',nomina_detalle:'Rol de Pago Detallado',empleados_perfil:'Perfil de Empleados',tesoreria:'Tesorería',bancos:'Bancos y Cuentas',caja:'Caja y Movimientos',nomina:'Nómina RRHH',inventario:'Inventario',admin:'Administración',compras:'Compras (Proveedores)',retenciones:'Retenciones Emitidas',ats:'Generador ATS',ice:'Generador ICE',pos:'Punto de Venta',estadisticas:'Estadísticas'};
 // Nota: las funciones de migración de datos demo a IndexedDB (usuarios, empresas,
 // plan_cuentas, accesos_multiempresa, items_compra, hash de contraseñas) se eliminaron
 // porque esas tablas ya viven 100% en Supabase — mantenerlas era código muerto
@@ -1607,7 +1621,7 @@ function nav(s){
   document.querySelectorAll('.ni').forEach(x=>{if(x.textContent.trim().toLowerCase().startsWith((TITLES[s]||s).split(' ')[0].toLowerCase()))x.classList.add('on')});
   document.getElementById('tbtl').textContent=TITLES[s]||s;
   CS=s;closeSidebar();
-  const fn={dashboard:loadDash,cuentas:loadCuentas,asientos:loadAsi,conciliacion:()=>{},facturas:loadFac,cxc:loadCXCModule,crm:loadCRM,reportes:()=>rpt('balance',document.querySelector('.stab')),finanzas:loadFinanzas,intercompany:loadIC,nomina:loadNom,inventario:renderInvDashboard,admin:loadAdmin,rubros:loadRubros,nomina_detalle:loadNominaDetalle,empleados_perfil:loadEmpleadosPerfil,tesoreria:loadTesoreria,bancos:loadBancos,caja:loadCaja,compras:loadCompras,retenciones:loadRetenciones,ats:loadATS,ice:loadICE,pos:loadPOS,estadisticas:loadEstadisticas};
+  const fn={dashboard:loadDash,cuentas:loadCuentas,asientos:loadAsi,conciliacion:()=>{},facturas:loadFac,cxc:loadCXCModule,crm:loadCRM,reportes:()=>rpt('balance',document.querySelector('.stab')),finanzas:loadFinanzas,auditoria:loadAuditoria,intercompany:loadIC,nomina:loadNom,inventario:renderInvDashboard,admin:loadAdmin,rubros:loadRubros,nomina_detalle:loadNominaDetalle,empleados_perfil:loadEmpleadosPerfil,tesoreria:loadTesoreria,bancos:loadBancos,caja:loadCaja,compras:loadCompras,retenciones:loadRetenciones,ats:loadATS,ice:loadICE,pos:loadPOS,estadisticas:loadEstadisticas};
   fn[s]?.();
 }
 async function refresh(){nav(CS)}
@@ -1705,6 +1719,7 @@ async function applyRoleUI(){
     const perm=CU.permisos||{pos:true,ventas:true,inventario:true,contabilidad:true,nomina:true};
     aplicarBuckets(perm);
     document.querySelectorAll('.ni').forEach(b=>{if(/nav\('admin'\)/.test(b.getAttribute('onclick')||''))b.classList.remove('rhide')});
+    document.querySelectorAll('.ni').forEach(b=>{if(/nav\('auditoria'\)/.test(b.getAttribute('onclick')||''))b.classList.remove('rhide')});
     document.getElementById('miEmpresaBox')?.classList.remove('hidden');
     loadMiEmpresa();
   }
@@ -2071,6 +2086,49 @@ async function loadFzCXP(){
     const badge=f.dias>90?'<span class="badge br">Vencido</span>':f.dias>60?'<span class="badge ba">Por vencer</span>':'<span class="badge bg">Al día</span>';
     return`<tr><td>${f.proveedorNom}</td><td>${f.numero||f.concepto||'—'}</td><td>${f.venc.toISOString().slice(0,10)}</td><td class="tr">${f.dias}</td><td class="tr fm">${fmt(f.total||0)}</td><td>${badge}</td></tr>`;
   }).join(''):'<tr><td colspan="6" class="te">Sin cuentas pendientes</td></tr>';
+}
+
+/* AUDITORÍA */
+let auditoriaCache=[];
+const CAMPOS_SENSIBLES_AUDITORIA=['id','created_at','password','permisos_raw'];
+const NOMBRES_TABLA={usuarios:'Usuarios',facturas:'Facturas',asientos:'Asientos contables',compras:'Compras',proveedores:'Proveedores',sesion:'Sesión'};
+const NOMBRES_ACCION={crear:'🟢 Creó',editar:'🟡 Editó',eliminar:'🔴 Eliminó',login:'🔵 Inició sesión'};
+function resumenAuditoria(a){
+  if(a.tabla==='sesion')return`${a.usuario_nombre} inició sesión`;
+  const datos=a.valores_nuevos||a.valores_anteriores||{};
+  const etiqueta=datos.nombre||datos.numero||datos.codigo||datos.email||(a.registro_id?a.registro_id.slice(0,8):'—');
+  return`${NOMBRES_TABLA[a.tabla]||a.tabla}: ${etiqueta}`;
+}
+async function loadAuditoria(){
+  if(!CE&&CU?.rol!=='Super Administrador')return;
+  let q=supa.from('auditoria').select('*').order('created_at',{ascending:false}).limit(300);
+  if(CU?.rol!=='Super Administrador')q=q.eq('empresa_id',CE);
+  const tabla=document.getElementById('au_tabla').value;
+  if(tabla)q=q.eq('tabla',tabla);
+  const accion=document.getElementById('au_accion').value;
+  if(accion)q=q.eq('accion',accion);
+  const desde=document.getElementById('au_desde').value;
+  if(desde)q=q.gte('created_at',desde);
+  const hasta=document.getElementById('au_hasta').value;
+  if(hasta)q=q.lte('created_at',hasta+'T23:59:59');
+  const{data,error}=await q;
+  if(error){document.getElementById('tAuditoria').innerHTML='<tr><td colspan="6" class="te">No se pudo cargar el historial</td></tr>';return}
+  auditoriaCache=data||[];
+  document.getElementById('tAuditoria').innerHTML=auditoriaCache.length?auditoriaCache.map((a,i)=>`<tr><td style="font-size:11.5px;color:var(--n5)">${new Date(a.created_at).toLocaleString('es-EC',{dateStyle:'short',timeStyle:'short'})}</td><td class="fw">${a.usuario_nombre}</td><td>${NOMBRES_ACCION[a.accion]||a.accion}</td><td>${NOMBRES_TABLA[a.tabla]||a.tabla}</td><td style="font-size:12px;color:var(--n5)">${resumenAuditoria(a)}</td><td>${(a.valores_anteriores||a.valores_nuevos)&&a.tabla!=='sesion'?`<button class="btn bo bsm" onclick="verDetalleAuditoria(${i})">Ver cambios</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" class="te">Sin registros para este filtro</td></tr>';
+}
+function verDetalleAuditoria(i){
+  const a=auditoriaCache[i];
+  const antes=a.valores_anteriores||{},despues=a.valores_nuevos||{};
+  const claves=[...new Set([...Object.keys(antes),...Object.keys(despues)])].filter(k=>!CAMPOS_SENSIBLES_AUDITORIA.includes(k));
+  const cambiadas=claves.filter(k=>JSON.stringify(antes[k])!==JSON.stringify(despues[k]));
+  const mostrar=cambiadas.length?cambiadas:claves;
+  const fmtVal=v=>v===null||v===undefined?'<span style="color:var(--n4)">—</span>':typeof v==='object'?JSON.stringify(v):String(v);
+  document.getElementById('auDetalleBody').innerHTML=`
+    <p style="font-size:12px;color:var(--n5);margin-bottom:12px">${a.usuario_nombre} · ${new Date(a.created_at).toLocaleString('es-EC')}</p>
+    <div class="tw"><table class="t"><thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead><tbody>
+      ${mostrar.map(k=>`<tr style="${cambiadas.includes(k)?'background:rgba(45,114,210,.06)':''}"><td class="fw" style="font-size:12px">${k}</td><td style="font-size:12px">${fmtVal(antes[k])}</td><td style="font-size:12px;color:var(--ok5)">${fmtVal(despues[k])}</td></tr>`).join('')}
+    </tbody></table></div>`;
+  openM('mAuditoriaDetalle');
 }
 
 /* PLAN DE CUENTAS (Supabase) */
@@ -3826,6 +3884,7 @@ async function doLogin(){
     if(!ok){toast('Tu cuenta no tiene un perfil asociado. Contacta al administrador.','er');await supa.auth.signOut();return}
     document.getElementById('loginGate').style.display='none';
     document.getElementById('lg_pwd').value='';
+    supa.rpc('registrar_login').then(({error})=>{if(error)console.warn('No se pudo registrar el login en auditoría:',error)});
     await startApp();
   }catch(e){console.error('Error en login:',e);toast('Error al iniciar sesión: '+e.message,'er')}
   finally{if(btn){btn.disabled=false;btn.textContent='Ingresar al sistema'}}
