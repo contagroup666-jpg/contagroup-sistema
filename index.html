@@ -726,13 +726,25 @@ table.t tbody tr:hover{background:var(--b0)}
 <!-- AUDITORÍA -->
 <section id="s-auditoria" class="pg hidden">
   <div class="pg-hd"><h2>🕵️ Auditoría</h2><p>Historial de acciones: quién hizo qué y cuándo</p></div>
-  <div class="row" style="gap:8px;margin-bottom:14px;flex-wrap:wrap">
-    <select id="au_tabla" class="fc" style="width:180px" onchange="loadAuditoria()"><option value="">Todas las acciones</option><option value="usuarios">Usuarios</option><option value="facturas">Facturas</option><option value="asientos">Asientos contables</option><option value="compras">Compras</option><option value="proveedores">Proveedores</option><option value="sesion">Inicios de sesión</option></select>
-    <select id="au_accion" class="fc" style="width:150px" onchange="loadAuditoria()"><option value="">Toda acción</option><option value="crear">Crear</option><option value="editar">Editar</option><option value="eliminar">Eliminar</option><option value="login">Login</option></select>
-    <input type="date" id="au_desde" class="fc" style="width:150px" onchange="loadAuditoria()">
-    <input type="date" id="au_hasta" class="fc" style="width:150px" onchange="loadAuditoria()">
+  <div class="stabs"><button class="stab on" onclick="swAuditoria('historial',this)">📜 Historial</button><button class="stab" onclick="swAuditoria('seguridad',this)">🛡️ Seguridad</button></div>
+
+  <div id="au-historial">
+    <div class="row" style="gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <select id="au_tabla" class="fc" style="width:180px" onchange="loadAuditoria()"><option value="">Todas las acciones</option><option value="usuarios">Usuarios</option><option value="facturas">Facturas</option><option value="asientos">Asientos contables</option><option value="compras">Compras</option><option value="proveedores">Proveedores</option><option value="sesion">Inicios de sesión</option></select>
+      <select id="au_accion" class="fc" style="width:150px" onchange="loadAuditoria()"><option value="">Toda acción</option><option value="crear">Crear</option><option value="editar">Editar</option><option value="eliminar">Eliminar</option><option value="login">Login</option></select>
+      <input type="date" id="au_desde" class="fc" style="width:150px" onchange="loadAuditoria()">
+      <input type="date" id="au_hasta" class="fc" style="width:150px" onchange="loadAuditoria()">
+    </div>
+    <div class="card"><div class="tw"><table class="t"><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Módulo</th><th>Detalle</th><th></th></tr></thead><tbody id="tAuditoria"><tr><td colspan="6" class="te">Cargando...</td></tr></tbody></table></div></div>
   </div>
-  <div class="card"><div class="tw"><table class="t"><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Módulo</th><th>Detalle</th><th></th></tr></thead><tbody id="tAuditoria"><tr><td colspan="6" class="te">Cargando...</td></tr></tbody></table></div></div>
+
+  <div id="au-seguridad" class="hidden">
+    <div class="card" style="margin-bottom:14px"><div class="ch"><span class="ct">🔒 Cuentas bloqueadas por intentos fallidos</span></div><div class="tw"><table class="t"><thead><tr><th>Correo</th><th class="tr">Intentos fallidos</th><th>Último intento</th></tr></thead><tbody id="tBloqueos"><tr><td colspan="3" class="te">Sin bloqueos activos</td></tr></tbody></table></div></div>
+    <div class="card"><div class="ch"><span class="ct">📊 Volumen de acciones (últimos 30 minutos)</span></div>
+      <div class="cb"><p style="font-size:11.5px;color:var(--n5);margin-bottom:12px">🟢 Normal (&lt;100) · 🟡 Atención (100-300) · 🟠 Alerta (300-500) · 🔴 Crítico (&gt;500)</p>
+      <div class="tw"><table class="t"><thead><tr><th>Usuario</th><th class="tr">Acciones (30 min)</th><th>Nivel</th></tr></thead><tbody id="tVolumen"><tr><td colspan="3" class="te">Sin actividad reciente</td></tr></tbody></table></div></div>
+    </div>
+  </div>
 </section>
 <!-- INTERCOMPANY IA -->
 <section id="s-intercompany" class="pg hidden">
@@ -2093,6 +2105,27 @@ let auditoriaCache=[];
 const CAMPOS_SENSIBLES_AUDITORIA=['id','created_at','password','permisos_raw'];
 const NOMBRES_TABLA={usuarios:'Usuarios',facturas:'Facturas',asientos:'Asientos contables',compras:'Compras',proveedores:'Proveedores',sesion:'Sesión'};
 const NOMBRES_ACCION={crear:'🟢 Creó',editar:'🟡 Editó',eliminar:'🔴 Eliminó',login:'🔵 Inició sesión'};
+function swAuditoria(tab,btn){
+  ['historial','seguridad'].forEach(t=>document.getElementById('au-'+t)?.classList.toggle('hidden',t!==tab));
+  document.querySelectorAll('#s-auditoria .stab').forEach(b=>b.classList.remove('on'));btn?.classList.add('on');
+  if(tab==='seguridad')loadSeguridad();
+}
+async function loadSeguridad(){
+  if(CU?.rol==='Super Administrador'){
+    const{data:bloqueos,error}=await supa.rpc('listar_bloqueos_activos');
+    document.getElementById('tBloqueos').innerHTML=(!error&&bloqueos?.length)?bloqueos.map(b=>`<tr><td class="fw">${b.email}</td><td class="tr" style="color:var(--er5)">${b.fallidos}</td><td style="font-size:11.5px;color:var(--n5)">${new Date(b.ultimo_intento).toLocaleString('es-EC')}</td></tr>`).join(''):'<tr><td colspan="3" class="te">Sin bloqueos activos</td></tr>';
+  }else{
+    document.getElementById('tBloqueos').innerHTML='<tr><td colspan="3" class="te">Solo visible para el Super Administrador</td></tr>';
+  }
+  const{data:vol,error:volErr}=await supa.rpc('reporte_volumen_actividad',{p_empresa_id:CU?.rol==='Super Administrador'?null:CE,p_minutos:30});
+  if(volErr||!vol?.length){document.getElementById('tVolumen').innerHTML='<tr><td colspan="3" class="te">Sin actividad reciente</td></tr>';return}
+  document.getElementById('tVolumen').innerHTML=vol.map(v=>{
+    const n=Number(v.total_acciones);
+    const nivel=n>500?'🔴 Crítico':n>300?'🟠 Alerta':n>100?'🟡 Atención':'🟢 Normal';
+    const color=n>500?'var(--er5)':n>300?'#E67E22':n>100?'var(--am5)':'var(--ok5)';
+    return`<tr><td class="fw">${v.usuario_nombre}</td><td class="tr fw" style="color:${color}">${n}</td><td>${nivel}</td></tr>`;
+  }).join('');
+}
 function resumenAuditoria(a){
   if(a.tabla==='sesion')return`${a.usuario_nombre} inició sesión`;
   const datos=a.valores_nuevos||a.valores_anteriores||{};
@@ -3878,8 +3911,14 @@ async function doLogin(){
     const pwd=document.getElementById('lg_pwd').value||'';
     if(!email||!pwd)return toast('Ingresa correo y contraseña','er');
     if(btn){btn.disabled=true;btn.textContent='Verificando...'}
+    const{data:bloqueo}=await supa.rpc('verificar_bloqueo_login',{p_email:email});
+    if(bloqueo?.bloqueado){toast(`Demasiados intentos fallidos. Intenta de nuevo en ${bloqueo.minutos_restantes} min.`,'er');return}
     const{data,error}=await supa.auth.signInWithPassword({email,password:pwd});
-    if(error){toast(error.message==='Invalid login credentials'?'Credenciales incorrectas':error.message,'er');return}
+    if(error){
+      supa.rpc('registrar_intento_login',{p_email:email,p_exitoso:false}).then(()=>{});
+      toast(error.message==='Invalid login credentials'?'Credenciales incorrectas':error.message,'er');return;
+    }
+    supa.rpc('registrar_intento_login',{p_email:email,p_exitoso:true}).then(()=>{});
     const ok=await cargarPerfilUsuario();
     if(!ok){toast('Tu cuenta no tiene un perfil asociado. Contacta al administrador.','er');await supa.auth.signOut();return}
     document.getElementById('loginGate').style.display='none';
