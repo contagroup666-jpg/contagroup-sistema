@@ -935,7 +935,7 @@ table.t tbody tr:hover{background:var(--b0)}
 
 <div class="mo" id="mEmp"><div class="mb"><div class="mh"><h3>👤 <span id="mEmpTtl">Nuevo Empleado</span></h3><button class="mx" onclick="closeM('mEmp')">✕</button></div><div class="mc"><input type="hidden" id="e_id"><div class="g2"><div class="fg"><label class="fl2">Nombre</label><input type="text" id="e_nom" class="fc"></div><div class="fg"><label class="fl2">Cédula</label><input type="text" id="e_ced" class="fc" maxlength="10"></div></div><div class="g2"><div class="fg"><label class="fl2">Cargo</label><input type="text" id="e_car" class="fc"></div><div class="fg"><label class="fl2">Salario</label><input type="number" step="0.01" id="e_sal" class="fc"></div></div><div class="fg"><label class="fl2">Fecha ingreso</label><input type="date" id="e_ing" class="fc"></div></div><div class="mf"><button class="btn bo" onclick="closeM('mEmp')">Cancelar</button><button class="btn bp" onclick="saveEmp()">💾 Guardar</button></div></div></div>
 
-<div class="mo" id="mProd"><div class="mb"><div class="mh"><h3>📦 <span id="mProdTtl">Nuevo Producto</span></h3><button class="mx" onclick="closeM('mProd')">✕</button></div><div class="mc"><input type="hidden" id="p_id"><div class="g2"><div class="fg"><label class="fl2">Código</label><input type="text" id="p_cod" class="fc" placeholder="P001"></div><div class="fg"><label class="fl2">Nombre</label><input type="text" id="p_nom" class="fc"></div></div><div class="g3"><div class="fg"><label class="fl2">Precio</label><input type="number" step="0.01" id="p_pre" class="fc" placeholder="0.00"></div><div class="fg"><label class="fl2">Costo</label><input type="number" step="0.01" id="p_cos" class="fc" placeholder="0.00"></div><div class="fg"><label class="fl2">Stock</label><input type="number" id="p_stk" class="fc" placeholder="0"></div></div>
+<div class="mo" id="mProd"><div class="mb"><div class="mh"><h3>📦 <span id="mProdTtl">Nuevo Producto</span></h3><button class="mx" onclick="closeM('mProd')">✕</button></div><div class="mc"><input type="hidden" id="p_id"><div class="g2"><div class="fg"><label class="fl2">Código</label><input type="text" id="p_cod" class="fc" placeholder="P001"></div><div class="fg"><label class="fl2">Nombre</label><input type="text" id="p_nom" class="fc"></div></div><div class="g2"><div class="fg"><label class="fl2">Categoría</label><input type="text" id="p_cat" class="fc" list="p_cat_list" placeholder="Ej. Bebidas, Electrónica..."><datalist id="p_cat_list"></datalist></div><div></div></div><div class="g3"><div class="fg"><label class="fl2">Precio</label><input type="number" step="0.01" id="p_pre" class="fc" placeholder="0.00"></div><div class="fg"><label class="fl2">Costo</label><input type="number" step="0.01" id="p_cos" class="fc" placeholder="0.00"></div><div class="fg"><label class="fl2">Stock</label><input type="number" id="p_stk" class="fc" placeholder="0"></div></div>
   <div class="div"></div>
   <div style="font-size:11.5px;color:var(--b6);margin-bottom:8px;font-weight:500">📦 Control de stock y Kardex</div>
   <div class="g3"><div class="fg"><label class="fl2">Stock mínimo (alerta)</label><input type="number" id="p_min" class="fc" placeholder="0" value="0"></div><div class="fg"><label class="fl2">Stock máximo</label><input type="number" id="p_max" class="fc" placeholder="0"></div><div class="fg"><label class="fl2">Método Kardex</label><select id="p_metodo" class="fc"><option value="Promedio">Promedio pond.</option><option value="PEPS">PEPS</option><option value="UEPS">UEPS</option></select></div></div>
@@ -3563,6 +3563,7 @@ async function editProd(id){
   document.getElementById('p_id').value=p.id;
   document.getElementById('p_cod').value=p.codigo;
   document.getElementById('p_nom').value=p.nombre;
+  document.getElementById('p_cat').value=p.categoria||'';
   document.getElementById('p_pre').value=p.precio;
   document.getElementById('p_cos').value=p.costo||0;
   document.getElementById('p_stk').value=p.stock||0;
@@ -3583,7 +3584,7 @@ async function saveProd(){
   const id=document.getElementById('p_id').value;
   const n=document.getElementById('p_nom').value.trim();
   if(!n)return toast('Nombre requerido','er');
-  const data={empresa_id:CE,codigo:document.getElementById('p_cod').value.trim()||'P-AUTO',nombre:n,precio:parseFloat(document.getElementById('p_pre').value)||0,costo:parseFloat(document.getElementById('p_cos').value)||0,stock:parseFloat(document.getElementById('p_stk').value)||0,stock_min:parseFloat(document.getElementById('p_min')?.value)||0,stock_max:parseFloat(document.getElementById('p_max')?.value)||0,metodo_kardex:document.getElementById('p_metodo')?.value||'Promedio',ubicacion:document.getElementById('p_ubicacion')?.value.trim()||'',referencia:document.getElementById('p_ref')?.value.trim()||'',codigo_ice:document.getElementById('p_ice')?.value||null,tipo_venta_ice:document.getElementById('p_ice_venta')?.value||'1-LOCAL',gramos_azucar:parseFloat(document.getElementById('p_gramos')?.value)||0};
+  const data={empresa_id:CE,codigo:document.getElementById('p_cod').value.trim()||'P-AUTO',nombre:n,categoria:document.getElementById('p_cat').value.trim()||'General',precio:parseFloat(document.getElementById('p_pre').value)||0,costo:parseFloat(document.getElementById('p_cos').value)||0,stock:parseFloat(document.getElementById('p_stk').value)||0,stock_min:parseFloat(document.getElementById('p_min')?.value)||0,stock_max:parseFloat(document.getElementById('p_max')?.value)||0,metodo_kardex:document.getElementById('p_metodo')?.value||'Promedio',ubicacion:document.getElementById('p_ubicacion')?.value.trim()||'',referencia:document.getElementById('p_ref')?.value.trim()||'',codigo_ice:document.getElementById('p_ice')?.value||null,tipo_venta_ice:document.getElementById('p_ice_venta')?.value||'1-LOCAL',gramos_azucar:parseFloat(document.getElementById('p_gramos')?.value)||0};
   const{error}=id?await supa.from('productos').update(data).eq('id',id):await supa.from('productos').insert(data);
   if(error){toast(error.code==='23505'?'Ya existe un producto con ese código':'Error al guardar: '+error.message,'er');return}
   closeM('mProd');toast(id?'Actualizado':'Registrado','ok');await loadInv();
@@ -4882,6 +4883,8 @@ async function loadInv(){
   const{data,error}=await supa.from('productos').select('*').eq('empresa_id',CE).order('codigo');
   const ps=data||[];
   if(error){document.getElementById('tInv').innerHTML='<tr><td colspan="8" class="te">Error al cargar productos</td></tr>';return}
+  const catList=document.getElementById('p_cat_list');
+  if(catList)catList.innerHTML=[...new Set(ps.map(p=>p.categoria).filter(Boolean))].map(c=>`<option value="${c}">`).join('');
   document.getElementById('tInv').innerHTML=ps.length?ps.map(p=>{
     const val=(p.stock||0)*(p.costo||p.precio||0);
     const pct=p.stock_min>0?Math.min(100,Math.round((p.stock||0)/Math.max(p.stock_min*2,1)*100)):Math.min(100,((p.stock||0)/300)*100);
