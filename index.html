@@ -76,7 +76,7 @@ body{font-family:var(--fb);background:var(--n0);color:var(--n9);min-height:100vh
 .kv{font-family:var(--fd);font-size:22px;font-weight:700;color:var(--n9);line-height:1}
 .kf{display:flex;align-items:center;gap:5px;margin-top:7px}
 .kch{font-size:11px;font-weight:600;padding:2px 6px;border-radius:99px}
-.up{color:var(--ok5);background:var(--ok1)}.fl{color:var(--n5);background:var(--n1)}
+.up{color:var(--ok5);background:var(--ok1)}.dn{color:var(--er5);background:var(--er1)}.fl{color:var(--n5);background:var(--n1)}
 .ks{font-size:11px;color:var(--n4)}.ki{position:absolute;top:14px;right:14px;font-size:24px;opacity:.1}
 /* CARDS */
 .card{background:var(--w);border-radius:var(--rl);border:1px solid var(--n2);box-shadow:var(--sh1)}
@@ -400,9 +400,13 @@ table.t tbody tr:hover{background:var(--b0)}
   <div id="dash-resumen">
   <div class="kgrid">
     <div class="kc"><div class="ki">🏦</div><div class="kl">Total Activos</div><div class="kv" id="kA">$0</div><div class="kf"><span class="kch up">▲</span><span class="ks">balance</span></div></div>
-    <div class="kc gr"><div class="ki">📈</div><div class="kl">Ingresos</div><div class="kv" id="kI">$0</div><div class="kf"><span class="kch up">▲</span><span class="ks">ventas</span></div></div>
+    <div class="kc gr"><div class="ki">📈</div><div class="kl">Ingresos (mes)</div><div class="kv" id="kI">$0</div><div class="kf"><span class="kch up" id="kITrendIcon">▲</span><span class="ks" id="kITrend">vs. mes anterior</span></div></div>
     <div class="kc am"><div class="ki">📉</div><div class="kl">Pasivos</div><div class="kv" id="kP">$0</div><div class="kf"><span class="kch fl">—</span><span class="ks">deudas</span></div></div>
-    <div class="kc pu"><div class="ki">🎯</div><div class="kl">Pipeline CRM</div><div class="kv" id="kCRM">$0</div><div class="kf"><span class="kch up">▲</span><span class="ks">oportunidades</span></div></div>
+    <div class="kc pu"><div class="ki">🎯</div><div class="kl">Pipeline CRM</div><div class="kv" id="kCRM">$0</div><div class="kf"><span class="kch up">▲</span><span class="ks" id="kCRMSub">oportunidades</span></div></div>
+  </div>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card"><div class="ch"><span class="ct">📈 Ventas vs Gastos</span><span style="font-size:11px;color:var(--n5);background:var(--n1);padding:3px 9px;border-radius:99px">Últimos 7 meses</span></div><div class="cb" style="position:relative;height:220px"><canvas id="chartVentasGastosResumen"></canvas></div></div>
+    <div class="card"><div class="ch"><span class="ct">🥯 Egresos por Categoría</span><span style="font-size:11px;color:var(--n5);background:var(--n1);padding:3px 9px;border-radius:99px">Mes en curso</span></div><div class="cb" id="egresosCatBody" style="display:flex;align-items:center;gap:16px;min-height:220px"><div style="position:relative;width:150px;height:150px;flex-shrink:0"><canvas id="chartEgresosCatDonut"></canvas></div><div id="egresosCatLeyenda" style="font-size:12.5px;flex:1"></div></div></div>
   </div>
   <div class="g2" style="margin-bottom:14px">
     <div class="card"><div class="ch"><span class="ct">📄 Últimas Facturas</span><button class="btn bg2 bsm" onclick="nav('facturas')">Ver →</button></div><div class="tw"><table class="t"><thead><tr><th>Número</th><th>Cliente</th><th>Total</th><th>Estado</th></tr></thead><tbody id="dFact"><tr><td colspan="4" class="te">Sin datos</td></tr></tbody></table></div></div>
@@ -1789,6 +1793,43 @@ async function loadDash(){
   const clis=(await supa.from('clientes').select('*').eq('empresa_id',CE)).data||[];const cm={};clis.forEach(c=>cm[c.id]=c.nombre);
   document.getElementById('dFact').innerHTML=facs.length?facs.map(f=>`<tr><td class="fm fw" style="font-size:11.5px">${f.numero}</td><td>${cm[f.cliente_id]||f.cliente_nombre||'N/D'}</td><td class="tr fm">${fmt(f.total)}</td><td>${bdg(f.estado)}</td></tr>`).join(''):'<tr><td colspan="4" class="te">Sin facturas</td></tr>';
   document.getElementById('dCRM').innerHTML=leads.length?leads.slice(0,5).map(l=>`<tr><td class="fw">${l.nombre}</td><td>${bdg(l.etapa)}</td><td class="tr fm" style="color:var(--ok5)">${fmt(l.valor)}</td></tr>`).join(''):'<tr><td colspan="3" class="te">Sin leads</td></tr>';
+
+  // Ventas vs Gastos (últimos 7 meses) + tendencia real de ingresos mes actual vs anterior
+  const todasFacs=(await supa.from('facturas').select('total,fecha,created_at,estado').eq('empresa_id',CE)).data||[];
+  const todasCompras=(await supa.from('compras').select('total,fecha,created_at,categoria').eq('empresa_id',CE)).data||[];
+  const facsValidas=todasFacs.filter(f=>f.estado!=='Anulada');
+  const meses=[];const hoy=new Date();
+  for(let i=6;i>=0;i--){const d=new Date(hoy.getFullYear(),hoy.getMonth()-i,1);meses.push({label:d.toLocaleDateString('es-EC',{month:'short'}),y:d.getFullYear(),m:d.getMonth()})}
+  const ventasPorMes=meses.map(mo=>facsValidas.filter(f=>{const d=new Date(f.fecha||f.created_at);return d.getFullYear()===mo.y&&d.getMonth()===mo.m}).reduce((s,f)=>s+(f.total||0),0));
+  const gastosPorMes=meses.map(mo=>todasCompras.filter(c=>{const d=new Date(c.fecha||c.created_at);return d.getFullYear()===mo.y&&d.getMonth()===mo.m}).reduce((s,c)=>s+(c.total||0),0));
+  const ingresoMesActual=ventasPorMes[6]||0,ingresoMesAnterior=ventasPorMes[5]||0;
+  const trendPct=ingresoMesAnterior>0?((ingresoMesActual-ingresoMesAnterior)/ingresoMesAnterior*100):(ingresoMesActual>0?100:0);
+  document.getElementById('kITrend').textContent=`${trendPct>=0?'+':''}${trendPct.toFixed(1)}% vs. mes anterior`;
+  document.getElementById('kITrendIcon').textContent=trendPct>=0?'▲':'▼';
+  document.getElementById('kITrendIcon').className='kch '+(trendPct>=0?'up':'dn');
+
+  if(window._chartVentasGastosResumen){try{window._chartVentasGastosResumen.destroy()}catch(e){}}
+  const ctxVG=document.getElementById('chartVentasGastosResumen');
+  if(ctxVG&&typeof Chart!=='undefined'){
+    try{window._chartVentasGastosResumen=new Chart(ctxVG,{type:'line',data:{labels:meses.map(m=>m.label),datasets:[
+      {label:'Ventas',data:ventasPorMes,borderColor:'#2D72D2',backgroundColor:'rgba(45,114,210,.12)',fill:true,tension:.35},
+      {label:'Gastos',data:gastosPorMes,borderColor:'#0F6E56',backgroundColor:'rgba(15,110,86,.10)',fill:true,tension:.35}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11}}}},scales:{y:{ticks:{callback:v=>'$'+(v>=1000?(v/1000)+'k':v)}}}}})}catch(e){console.warn('No se pudo dibujar Ventas vs Gastos',e)}
+  }
+
+  // Egresos por categoría (mes en curso) — donut
+  const mesActualIdx=hoy.getMonth(),anioActualIdx=hoy.getFullYear();
+  const comprasMes=todasCompras.filter(c=>{const d=new Date(c.fecha||c.created_at);return d.getMonth()===mesActualIdx&&d.getFullYear()===anioActualIdx});
+  const porCat={};comprasMes.forEach(c=>{const cat=c.categoria||'Otros';porCat[cat]=(porCat[cat]||0)+(c.total||0)});
+  const catEntries=Object.entries(porCat).sort((a,b)=>b[1]-a[1]);
+  const coloresCat=['#2D72D2','#0F6E56','#D9822B','#C74A45','#8430CE','#5A6B87'];
+  if(window._chartEgresosCatDonut){try{window._chartEgresosCatDonut.destroy()}catch(e){}}
+  const ctxDonut=document.getElementById('chartEgresosCatDonut');
+  if(ctxDonut&&typeof Chart!=='undefined'){
+    try{window._chartEgresosCatDonut=new Chart(ctxDonut,{type:'doughnut',data:{labels:catEntries.length?catEntries.map(e=>e[0]):['Sin egresos'],datasets:[{data:catEntries.length?catEntries.map(e=>e[1]):[1],backgroundColor:catEntries.length?coloresCat:['#E5E9EF'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{display:false}}}})}catch(e){console.warn('No se pudo dibujar el donut de egresos',e)}
+  }
+  document.getElementById('egresosCatLeyenda').innerHTML=catEntries.length?catEntries.map((e,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0"><span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:${coloresCat[i%coloresCat.length]};display:inline-block"></span>${e[0]}</span><strong class="fm">${fmt(e[1])}</strong></div>`).join(''):'<p style="color:var(--n4);font-size:12px">Sin egresos este mes</p>';
+
   await loadDashProfesional();
 }
 function swDash(tab,btn){['resumen','profesional','pro'].forEach(t=>document.getElementById('dash-'+t)?.classList.add('hidden'));document.getElementById('dash-'+tab)?.classList.remove('hidden');document.querySelectorAll('#s-dashboard .stab:not(.dpPer)').forEach(b=>b.classList.remove('on'));btn?.classList.add('on');if(tab==='pro')loadDashPro()}
