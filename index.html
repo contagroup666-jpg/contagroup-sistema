@@ -1063,7 +1063,7 @@ table.t tbody tr:hover{background:var(--b0)}
       <button class="btn bo bsm" onclick="addLineaProforma()">+ Agregar línea</button>
     </div>
     <table class="t" style="font-size:12.5px">
-      <thead><tr><th>Descripción</th><th style="width:70px;text-align:center">Cant.</th><th style="width:90px;text-align:right">P.Unit.</th><th style="width:90px;text-align:right">Subtotal</th><th style="width:36px"></th></tr></thead>
+      <thead><tr><th style="width:170px">Producto (inventario)</th><th>Descripción</th><th style="width:70px;text-align:center">Cant.</th><th style="width:90px;text-align:right">P.Unit.</th><th style="width:90px;text-align:right">Subtotal</th><th style="width:36px"></th></tr></thead>
       <tbody id="tLineasProforma"></tbody>
     </table>
     <div style="text-align:right;margin-top:8px;font-size:13px">
@@ -2526,6 +2526,7 @@ async function delServicio(id){if(!confirm('¿Eliminar este servicio?'))return;a
 
 /* ── PROFORMAS ── */
 var pfLineas=[];
+var pfProductosCache=[];
 async function loadProformas(){
   if(!CE)return;
   const{data:pfsD}=await supa.from('proformas').select('*').eq('empresa_id',CE).order('created_at',{ascending:false});const pfs=pfsD||[];
@@ -2545,9 +2546,20 @@ async function loadProformas(){
     </td>
   </tr>`).join(''):'<tr><td colspan="7" class="te">Sin proformas</td></tr>';
 }
-function addLineaProforma(){pfLineas.push({descripcion:'',cantidad:1,precio:0});renderLineasProforma()}
+async function cargarPfProductosCache(){
+  if(!CE)return;
+  pfProductosCache=(await supa.from('productos').select('id,nombre,precio,stock').eq('empresa_id',CE).order('nombre')).data||[];
+}
+function addLineaProforma(){pfLineas.push({producto_id:null,descripcion:'',cantidad:1,precio:0});renderLineasProforma()}
+function pfSeleccionarProducto(i,prodId){
+  if(!prodId){pfLineas[i].producto_id=null;renderLineasProforma();return}
+  const p=pfProductosCache.find(x=>x.id===prodId);if(!p)return;
+  pfLineas[i]={producto_id:p.id,descripcion:p.nombre,cantidad:pfLineas[i].cantidad||1,precio:p.precio||0};
+  renderLineasProforma();
+}
 function renderLineasProforma(){
   document.getElementById('tLineasProforma').innerHTML=pfLineas.map((l,i)=>`<tr>
+    <td style="padding:4px"><select onchange="pfSeleccionarProducto(${i},this.value)" class="fc" style="font-size:11.5px"><option value="">✏️ Manual / servicio</option>${pfProductosCache.map(p=>`<option value="${p.id}" ${l.producto_id===p.id?'selected':''}>${p.nombre} (stock ${p.stock})</option>`).join('')}</select></td>
     <td style="padding:4px"><input type="text" value="${l.descripcion}" onchange="pfLineas[${i}].descripcion=this.value" class="fc" style="font-size:12px"></td>
     <td style="padding:4px"><input type="number" min="1" value="${l.cantidad}" onchange="pfLineas[${i}].cantidad=parseFloat(this.value)||1;calcTotalesPf()" class="fc" style="text-align:center;font-size:12px"></td>
     <td style="padding:4px"><input type="number" step="0.01" value="${l.precio}" onchange="pfLineas[${i}].precio=parseFloat(this.value)||0;calcTotalesPf()" class="fc" style="text-align:right;font-size:12px"></td>
@@ -2557,7 +2569,7 @@ function renderLineasProforma(){
 }
 function calcTotalesPf(){const sub=pfLineas.reduce((a,l)=>a+l.precio*l.cantidad,0);const iva=sub*IVA_RATE;document.getElementById('pf_sub').textContent=fmt(sub);document.getElementById('pf_iva').textContent=fmt(iva);document.getElementById('pf_tot').textContent=fmt(sub+iva);}
 async function fillCliSelPf(){if(!CE)return;const{data}=await supa.from('clientes').select('*').eq('empresa_id',CE).order('nombre');const cs=data||[];const s=document.getElementById('pf_cli');if(s)s.innerHTML='<option value="">Seleccionar cliente...</option>'+cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');}
-async function openMProforma(){document.getElementById('mProfTtl').textContent='Nueva proforma';document.getElementById('pf_id').value='';pfLineas=[];renderLineasProforma();document.getElementById('pf_fec').valueAsDate=new Date();const v=new Date();v.setDate(v.getDate()+30);document.getElementById('pf_valid').value=v.toISOString().slice(0,10);document.getElementById('pf_nota').value='';await fillCliSelPf();document.getElementById('mProforma').classList.add('open');}
+async function openMProforma(){document.getElementById('mProfTtl').textContent='Nueva proforma';document.getElementById('pf_id').value='';pfLineas=[];await cargarPfProductosCache();renderLineasProforma();document.getElementById('pf_fec').valueAsDate=new Date();const v=new Date();v.setDate(v.getDate()+30);document.getElementById('pf_valid').value=v.toISOString().slice(0,10);document.getElementById('pf_nota').value='';await fillCliSelPf();document.getElementById('mProforma').classList.add('open');}
 async function saveProforma(){
   if(!CE)return toast('Selecciona una empresa','er');
   const sub=pfLineas.reduce((a,l)=>a+(parseFloat(l.precio)||0)*(parseFloat(l.cantidad)||0),0);
@@ -2580,7 +2592,7 @@ async function saveProforma(){
 async function editProforma(id){
   const{data:pf,error}=await supa.from('proformas').select('*').eq('id',id).maybeSingle();
   if(error||!pf)return;
-  document.getElementById('mProfTtl').textContent='Editar proforma';document.getElementById('pf_id').value=pf.id;pfLineas=pf.lineas||[];await fillCliSelPf();document.getElementById('pf_cli').value=pf.cliente_id||'';document.getElementById('pf_fec').value=pf.fecha||'';document.getElementById('pf_valid').value=pf.valida_hasta||'';document.getElementById('pf_nota').value=pf.nota||'';renderLineasProforma();document.getElementById('mProforma').classList.add('open');
+  document.getElementById('mProfTtl').textContent='Editar proforma';document.getElementById('pf_id').value=pf.id;pfLineas=pf.lineas||[];await cargarPfProductosCache();await fillCliSelPf();document.getElementById('pf_cli').value=pf.cliente_id||'';document.getElementById('pf_fec').value=pf.fecha||'';document.getElementById('pf_valid').value=pf.valida_hasta||'';document.getElementById('pf_nota').value=pf.nota||'';renderLineasProforma();document.getElementById('mProforma').classList.add('open');
 }
 async function delProforma(id){
   if(!confirm('¿Eliminar esta proforma?'))return;
@@ -2594,7 +2606,13 @@ async function convertirProformaFacId(id){
   const{data:pf}=await supa.from('proformas').select('*').eq('id',id).maybeSingle();if(!pf)return;
   if(!confirm('¿Convertir esta proforma en Factura / Nota de Venta?'))return;
   await supa.from('proformas').update({estado:'Convertida'}).eq('id',id);
-  posCart=pf.lineas.map(l=>({producto_id:null,nombre:l.descripcion,precio:l.precio,costo:0,cantidad:l.cantidad}));
+  const idsProductos=[...new Set((pf.lineas||[]).map(l=>l.producto_id).filter(Boolean))];
+  let costosMap={};
+  if(idsProductos.length){
+    const{data:prods}=await supa.from('productos').select('id,costo').in('id',idsProductos);
+    costosMap=Object.fromEntries((prods||[]).map(p=>[p.id,p.costo||0]));
+  }
+  posCart=pf.lineas.map(l=>({producto_id:l.producto_id||null,nombre:l.descripcion,precio:l.precio,costo:l.producto_id?(costosMap[l.producto_id]||0):0,cantidad:l.cantidad}));
   posTipoDoc='NOTA_VENTA';
   closeM('mProforma');
   await nav('pos');
@@ -3059,7 +3077,11 @@ async function posConfirmarVenta(){
     if(!v)return toast('Selecciona un cliente (requerido para Factura o Crédito)','er');
     clienteId=v;const{data:cli}=await supa.from('clientes').select('*').eq('id',clienteId).maybeSingle();clienteNombre=cli?.nombre||'Cliente';
   }
-  for(const it of posCart){const{data:p}=await supa.from('productos').select('*').eq('id',it.producto_id).maybeSingle();if(!p||p.stock<it.cantidad)return toast(`Sin stock suficiente de ${it.nombre}`,'er')}
+  for(const it of posCart){
+    if(!it.producto_id)continue;
+    const{data:p}=await supa.from('productos').select('*').eq('id',it.producto_id).maybeSingle();
+    if(!p||p.stock<it.cantidad)return toast(`Sin stock suficiente de ${it.nombre}`,'er');
+  }
   const{count}=await supa.from('facturas').select('*',{count:'exact',head:true}).eq('empresa_id',CE).eq('origen','POS').eq('tipo_doc',posTipoDoc);
   const posPrevios=count||0;
   const numero=posTipoDoc==='FACTURA'?`001-001-${String(posPrevios+1).padStart(9,'0')}`:`NV-${String(posPrevios+1).padStart(6,'0')}`;
@@ -3069,6 +3091,7 @@ async function posConfirmarVenta(){
   const facId=nuevaFac.id;
   if(posCart.length)await supa.from('factura_items').insert(posCart.map((it,i)=>({factura_id:facId,nombre:it.nombre,cantidad:it.cantidad,precio:it.precio,total:it.precio*it.cantidad,orden:i})));
   for(const it of posCart){
+    if(!it.producto_id)continue;
     const{data:p}=await supa.from('productos').select('*').eq('id',it.producto_id).maybeSingle();
     if(p)await supa.from('productos').update({stock:(p.stock||0)-it.cantidad}).eq('id',it.producto_id);
     await supa.from('movimientos_inv').insert({empresa_id:CE,producto_id:it.producto_id,tipo:'salida',cantidad:it.cantidad,costo_unitario:it.costo,vr_unitario:it.costo,ref:'POS',factura_id:String(facId),nota:`Venta POS ${numero}`});
@@ -3093,7 +3116,7 @@ async function posGenerarProforma(){
   if(dias<1)return toast('Los días de validez deben ser al menos 1','er');
   const sel=document.getElementById('pos_cliente');const clienteId=sel?.value||null;
   const hoy=new Date();const validaHasta=new Date(hoy.getTime()+dias*86400000);
-  const lineas=posCart.map(it=>({descripcion:it.nombre,cantidad:it.cantidad,precio:it.precio}));
+  const lineas=posCart.map(it=>({producto_id:it.producto_id||null,descripcion:it.nombre,cantidad:it.cantidad,precio:it.precio}));
   const{count}=await supa.from('proformas').select('*',{count:'exact',head:true}).eq('empresa_id',CE);
   const numero=`PRO-${String((count||0)+1).padStart(5,'0')}`;
   const data={empresa_id:CE,cliente_id:clienteId,fecha:hoy.toISOString().slice(0,10),valida_hasta:validaHasta.toISOString().slice(0,10),nota:`Generada desde Punto de Venta · válida ${dias} día(s)`,lineas,subtotal:sub,iva,total:tot,numero,estado:'Borrador'};
