@@ -2788,7 +2788,46 @@ async function loadFac(){
   if(error){console.error(error);tb.innerHTML='<tr><td colspan="8" class="te">Error al cargar las facturas</td></tr>';return}
   const facs=data||[];
   const{data:clisD}=await supa.from('clientes').select('*').eq('empresa_id',CE);const clis=clisD||[];const cm={};clis.forEach(c=>cm[c.id]=c.nombre);
-  tb.innerHTML=facs.length?facs.map(f=>`<tr><td class="fm fw" style="font-size:11.5px">${f.numero}</td><td>${f.fecha}</td><td>${cm[f.cliente_id]||f.cliente_nombre||'N/D'}</td><td class="tr fm">${fmt(f.subtotal)}</td><td class="tr fm">${fmt(f.iva)}</td><td class="tr fm fw" style="color:var(--b6)">${fmt(f.total)}</td><td>${bdg(f.estado||'Pendiente')}</td><td style="display:flex;gap:4px"><button class="btn bo bsm bic" onclick="pdfFac('${f.id}')" title="PDF">📄</button><button class="btn bd bsm bic" onclick="delFac('${f.id}')">🗑</button></td></tr>`).join(''):'<tr><td colspan="8" class="te">Sin facturas</td></tr>';
+  tb.innerHTML=facs.length?facs.map(f=>{
+    const anulada=f.estado==='Anulada';
+    return`<tr style="${anulada?'opacity:.55':''}"><td class="fm fw" style="font-size:11.5px">${f.numero}</td><td>${f.fecha}</td><td>${cm[f.cliente_id]||f.cliente_nombre||'N/D'}</td><td class="tr fm">${fmt(f.subtotal)}</td><td class="tr fm">${fmt(f.iva)}</td><td class="tr fm fw" style="color:var(--b6)">${fmt(f.total)}</td><td>${bdg(f.estado||'Pendiente')}</td><td style="display:flex;gap:4px"><button class="btn bo bsm bic" onclick="pdfFac('${f.id}')" title="PDF">📄</button>${anulada?'':`<button class="btn bd bsm bic" onclick="anularFactura('${f.id}')" title="Anular factura">⛔</button>`}</td></tr>`;
+  }).join(''):'<tr><td colspan="8" class="te">Sin facturas</td></tr>';
+}
+async function anularFactura(id){
+  const{data:f,error}=await supa.from('facturas').select('*').eq('id',id).maybeSingle();
+  if(error||!f)return toast('No se pudo cargar la factura','er');
+  if(f.estado==='Anulada')return toast('Esta factura ya está anulada','er');
+  if(!confirm(`¿Anular la factura ${f.numero}?\n\nEl inventario vendido se restaurará automáticamente y la factura quedará marcada como "Anulada" — no se elimina ni se renumera, sigue apareciendo en el historial para auditoría.`))return;
+  try{
+    let items=f.items;
+    if(!items||!items.length){
+      const{data:fi}=await supa.from('factura_items').select('*').eq('factura_id',id);
+      items=fi||[];
+    }
+    for(const it of items||[]){
+      if(!it.producto_id)continue;
+      const{data:p}=await supa.from('productos').select('stock').eq('id',it.producto_id).maybeSingle();
+      if(p)await supa.from('productos').update({stock:(p.stock||0)+(it.cantidad||0)}).eq('id',it.producto_id);
+      await supa.from('movimientos_inv').insert({empresa_id:f.empresa_id,producto_id:it.producto_id,tipo:'entrada',cantidad:it.cantidad||0,costo_unitario:it.costo||0,vr_unitario:it.costo||0,ref:'ANULACION',factura_id:String(id),nota:`Anulación de factura ${f.numero}`});
+    }
+    if(Array.isArray(f.pagos)&&f.pagos.length){
+      for(const p of f.pagos){const monto=parseFloat(p.monto)||0;if(monto<=0)continue;
+        if(p.metodo==='Efectivo')await postearCuenta('1.1.01',0,monto);
+        else if(p.metodo==='Credito')await postearCuenta('1.1.03',0,monto);
+        else await postearCuenta('1.1.02',0,monto);
+      }
+      await postearCuenta('4.1.01',f.subtotal||0,0);
+      await postearCuenta('2.1.02',f.iva||0,0);
+      const costoTotal=(items||[]).reduce((a,i)=>a+(i.costo||0)*(i.cantidad||0),0);
+      if(costoTotal>0){await postearCuenta('5.1.01',0,costoTotal);await postearCuenta('1.2.01',costoTotal,0)}
+    }
+    await supa.from('facturas').update({estado:'Anulada'}).eq('id',id);
+    toast(`Factura ${f.numero} anulada — inventario restaurado`,'wn');
+    await loadFac();
+  }catch(e){
+    console.error('Error al anular factura:',e);
+    toast('Error al anular: '+e.message,'er');
+  }
 }
 async function fillCliSel(){if(!CE)return;const{data}=await supa.from('clientes').select('*').eq('empresa_id',CE).order('nombre');const cs=data||[];document.getElementById('f_cli').innerHTML='<option value="">Seleccionar...</option>'+cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
 let scanReader=null,scanContext='inventario',_ultimoScan='',_ultimoScanTime=0;
@@ -3082,69 +3121,96 @@ function posAgregarPago(){const{tot}=posTotales();const pagado=posPagos.reduce((
 function posQuitarPago(i){posPagos.splice(i,1);const t=posTotales();posRenderTotales(t.sub,t.iva,t.tot)}
 function posPagoMetodo(i,v){if(posPagos[i])posPagos[i].metodo=v}
 function posPagoMonto(i,v){if(posPagos[i])posPagos[i].monto=parseFloat(v)||0;const t=posTotales();const pagado=posPagos.reduce((a,p)=>a+(parseFloat(p.monto)||0),0);const restante=t.tot-pagado;const d=document.querySelector('#pos_totales > div[style*="text-align:right"]');if(d){d.style.color=Math.abs(restante)<0.01?'var(--ok5)':'var(--er5)';d.textContent=Math.abs(restante)<0.01?'Pagos completos ✓':'Falta: '+fmt(restante)}}
+let posVentaEnProceso=false;
 async function posConfirmarVenta(){
+  if(posVentaEnProceso)return;
   if(posCart.length===0)return toast('Agrega productos al carrito','er');
   const{sub,iva,tot}=posTotales();
   const pagado=posPagos.reduce((a,p)=>a+(parseFloat(p.monto)||0),0);
   if(Math.abs(pagado-tot)>0.02)return toast('Los pagos no cuadran con el total','er');
   if(posPagos.length===0||posPagos.some(p=>!p.metodo))return toast('Selecciona el método de cada pago','er');
-  let clienteId=null,clienteNombre='Consumidor Final';
-  const necesitaCliente=posTipoDoc==='FACTURA'||posPagos.some(p=>p.metodo==='Credito');
-  if(necesitaCliente){
-    const sel=document.getElementById('pos_cliente');const v=sel?sel.value:'';
-    if(!v)return toast('Selecciona un cliente (requerido para Factura o Crédito)','er');
-    clienteId=v;const{data:cli}=await supa.from('clientes').select('*').eq('id',clienteId).maybeSingle();clienteNombre=cli?.nombre||'Cliente';
+  posVentaEnProceso=true;
+  const btnConfirmar=document.getElementById('btn_confirmar');
+  if(btnConfirmar){btnConfirmar.disabled=true;btnConfirmar.textContent='Procesando...'}
+  try{
+    let clienteId=null,clienteNombre='Consumidor Final';
+    const necesitaCliente=posTipoDoc==='FACTURA'||posPagos.some(p=>p.metodo==='Credito');
+    if(necesitaCliente){
+      const sel=document.getElementById('pos_cliente');const v=sel?sel.value:'';
+      if(!v)return toast('Selecciona un cliente (requerido para Factura o Crédito)','er');
+      clienteId=v;const{data:cli}=await supa.from('clientes').select('*').eq('id',clienteId).maybeSingle();clienteNombre=cli?.nombre||'Cliente';
+    }
+    for(const it of posCart){
+      if(!it.producto_id)continue;
+      const{data:p}=await supa.from('productos').select('*').eq('id',it.producto_id).maybeSingle();
+      if(!p||p.stock<it.cantidad)return toast(`Sin stock suficiente de ${it.nombre}`,'er');
+    }
+    const{count}=await supa.from('facturas').select('*',{count:'exact',head:true}).eq('empresa_id',CE).eq('origen','POS').eq('tipo_doc',posTipoDoc);
+    const posPrevios=count||0;
+    const numero=posTipoDoc==='FACTURA'?`001-001-${String(posPrevios+1).padStart(9,'0')}`:`NV-${String(posPrevios+1).padStart(6,'0')}`;
+    const facData={empresa_id:CE,numero,cliente_id:clienteId,cliente_nombre:clienteNombre,cajero_nombre:CU?.nombre||'—',cajero_id:CU?.id||null,fecha:new Date().toISOString().slice(0,10),subtotal:sub,iva,total:tot,estado:'Autorizada',origen:'POS',tipo_doc:posTipoDoc,turno_id:posTurno?.id||null,pagos:posPagos.map(p=>({metodo:p.metodo,monto:parseFloat(p.monto)||0})),items:posCart.map(i=>({producto_id:i.producto_id,nombre:i.nombre,cantidad:i.cantidad,precio:i.precio,costo:i.costo}))};
+    const{data:nuevaFac,error:facErr}=await supa.from('facturas').insert(facData).select().single();
+    if(facErr){toast('Error al registrar la venta: '+facErr.message,'er');return}
+    const facId=nuevaFac.id;
+    if(posCart.length)await supa.from('factura_items').insert(posCart.map((it,i)=>({factura_id:facId,nombre:it.nombre,cantidad:it.cantidad,precio:it.precio,total:it.precio*it.cantidad,orden:i})));
+    for(const it of posCart){
+      if(!it.producto_id)continue;
+      const{data:p}=await supa.from('productos').select('*').eq('id',it.producto_id).maybeSingle();
+      if(p)await supa.from('productos').update({stock:(p.stock||0)-it.cantidad}).eq('id',it.producto_id);
+      await supa.from('movimientos_inv').insert({empresa_id:CE,producto_id:it.producto_id,tipo:'salida',cantidad:it.cantidad,costo_unitario:it.costo,vr_unitario:it.costo,ref:'POS',factura_id:String(facId),nota:`Venta POS ${numero}`});
+    }
+    for(const p of posPagos){const monto=parseFloat(p.monto)||0;if(monto<=0)continue;if(p.metodo==='Efectivo')await postearCuenta('1.1.01',monto,0);else if(p.metodo==='Credito')await postearCuenta('1.1.03',monto,0);else await postearCuenta('1.1.02',monto,0);}
+    await postearCuenta('4.1.01',0,sub);await postearCuenta('2.1.02',0,iva);
+    const costoTotal=posCart.reduce((a,i)=>a+(i.costo||0)*i.cantidad,0);
+    if(costoTotal>0){await postearCuenta('5.1.01',costoTotal,0);await postearCuenta('1.2.01',0,costoTotal)}
+    if(posProformaOrigenId){await supa.from('proformas').update({estado:'Convertida'}).eq('id',posProformaOrigenId)}
+    // --- Imprimir ANTES de limpiar para que el modal se abra con los datos ---
+    await posImprimirTicket({...facData,id:facId});
+    // --- Limpiar y reiniciar pantalla de venta ---
+    posCart=[];posPagos=[];posTipoDoc='NOTA_VENTA';
+    posProductos=(await supa.from('productos').select('*').eq('empresa_id',CE)).data||[];
+    renderPosVenta();
+    toast(`✓ ${numero} registrada — nueva venta lista`,'ok');
+  }catch(e){
+    console.error('Error al confirmar la venta:',e);
+    toast('Error inesperado al procesar la venta: '+e.message,'er');
+  }finally{
+    posVentaEnProceso=false;
+    const btn=document.getElementById('btn_confirmar');
+    if(btn){btn.disabled=posCart.length===0;btn.textContent=posTipoDoc==='PROFORMA'?'📋 Generar Proforma':'✅ Confirmar venta'}
   }
-  for(const it of posCart){
-    if(!it.producto_id)continue;
-    const{data:p}=await supa.from('productos').select('*').eq('id',it.producto_id).maybeSingle();
-    if(!p||p.stock<it.cantidad)return toast(`Sin stock suficiente de ${it.nombre}`,'er');
-  }
-  const{count}=await supa.from('facturas').select('*',{count:'exact',head:true}).eq('empresa_id',CE).eq('origen','POS').eq('tipo_doc',posTipoDoc);
-  const posPrevios=count||0;
-  const numero=posTipoDoc==='FACTURA'?`001-001-${String(posPrevios+1).padStart(9,'0')}`:`NV-${String(posPrevios+1).padStart(6,'0')}`;
-  const facData={empresa_id:CE,numero,cliente_id:clienteId,cliente_nombre:clienteNombre,cajero_nombre:CU?.nombre||'—',cajero_id:CU?.id||null,fecha:new Date().toISOString().slice(0,10),subtotal:sub,iva,total:tot,estado:'Autorizada',origen:'POS',tipo_doc:posTipoDoc,turno_id:posTurno?.id||null,pagos:posPagos.map(p=>({metodo:p.metodo,monto:parseFloat(p.monto)||0})),items:posCart.map(i=>({producto_id:i.producto_id,nombre:i.nombre,cantidad:i.cantidad,precio:i.precio,costo:i.costo}))};
-  const{data:nuevaFac,error:facErr}=await supa.from('facturas').insert(facData).select().single();
-  if(facErr){toast('Error al registrar la venta: '+facErr.message,'er');return}
-  const facId=nuevaFac.id;
-  if(posCart.length)await supa.from('factura_items').insert(posCart.map((it,i)=>({factura_id:facId,nombre:it.nombre,cantidad:it.cantidad,precio:it.precio,total:it.precio*it.cantidad,orden:i})));
-  for(const it of posCart){
-    if(!it.producto_id)continue;
-    const{data:p}=await supa.from('productos').select('*').eq('id',it.producto_id).maybeSingle();
-    if(p)await supa.from('productos').update({stock:(p.stock||0)-it.cantidad}).eq('id',it.producto_id);
-    await supa.from('movimientos_inv').insert({empresa_id:CE,producto_id:it.producto_id,tipo:'salida',cantidad:it.cantidad,costo_unitario:it.costo,vr_unitario:it.costo,ref:'POS',factura_id:String(facId),nota:`Venta POS ${numero}`});
-  }
-  for(const p of posPagos){const monto=parseFloat(p.monto)||0;if(monto<=0)continue;if(p.metodo==='Efectivo')await postearCuenta('1.1.01',monto,0);else if(p.metodo==='Credito')await postearCuenta('1.1.03',monto,0);else await postearCuenta('1.1.02',monto,0);}
-  await postearCuenta('4.1.01',0,sub);await postearCuenta('2.1.02',0,iva);
-  const costoTotal=posCart.reduce((a,i)=>a+(i.costo||0)*i.cantidad,0);
-  if(costoTotal>0){await postearCuenta('5.1.01',costoTotal,0);await postearCuenta('1.2.01',0,costoTotal)}
-  if(posProformaOrigenId){await supa.from('proformas').update({estado:'Convertida'}).eq('id',posProformaOrigenId)}
-  // --- Imprimir ANTES de limpiar para que el modal se abra con los datos ---
-  await posImprimirTicket({...facData,id:facId});
-  // --- Limpiar y reiniciar pantalla de venta ---
-  posCart=[];posPagos=[];posTipoDoc='NOTA_VENTA';
-  posProductos=(await supa.from('productos').select('*').eq('empresa_id',CE)).data||[];
-  renderPosVenta();
-  toast(`✓ ${numero} registrada — nueva venta lista`,'ok');
 }
 async function posGenerarProforma(){
+  if(posVentaEnProceso)return;
   if(posCart.length===0)return toast('Agrega productos al carrito','er');
   if(!CE)return toast('Selecciona una empresa','er');
-  const{sub,iva,tot}=posTotales();
   const dias=parseInt(document.getElementById('pos_dias_validez').value)||15;
   if(dias<1)return toast('Los días de validez deben ser al menos 1','er');
-  const sel=document.getElementById('pos_cliente');const clienteId=sel?.value||null;
-  const hoy=new Date();const validaHasta=new Date(hoy.getTime()+dias*86400000);
-  const lineas=posCart.map(it=>({producto_id:it.producto_id||null,descripcion:it.nombre,cantidad:it.cantidad,precio:it.precio}));
-  const{count}=await supa.from('proformas').select('*',{count:'exact',head:true}).eq('empresa_id',CE);
-  const numero=`PRO-${String((count||0)+1).padStart(5,'0')}`;
-  const data={empresa_id:CE,cliente_id:clienteId,fecha:hoy.toISOString().slice(0,10),valida_hasta:validaHasta.toISOString().slice(0,10),nota:`Generada desde Punto de Venta · válida ${dias} día(s)`,lineas,subtotal:sub,iva,total:tot,numero,estado:'Borrador'};
-  const{error}=await supa.from('proformas').insert(data);
-  if(error){toast('Error al generar la proforma: '+error.message,'er');return}
-  imprimirProformaData(data);
-  posCart=[];posPagos=[];posTipoDoc='NOTA_VENTA';
-  renderPosVenta();
-  toast(`✓ Proforma ${numero} generada — válida ${dias} día(s)`,'ok');
+  posVentaEnProceso=true;
+  const btnConfirmar=document.getElementById('btn_confirmar');
+  if(btnConfirmar){btnConfirmar.disabled=true;btnConfirmar.textContent='Generando...'}
+  try{
+    const{sub,iva,tot}=posTotales();
+    const sel=document.getElementById('pos_cliente');const clienteId=sel?.value||null;
+    const hoy=new Date();const validaHasta=new Date(hoy.getTime()+dias*86400000);
+    const lineas=posCart.map(it=>({producto_id:it.producto_id||null,descripcion:it.nombre,cantidad:it.cantidad,precio:it.precio}));
+    const{count}=await supa.from('proformas').select('*',{count:'exact',head:true}).eq('empresa_id',CE);
+    const numero=`PRO-${String((count||0)+1).padStart(5,'0')}`;
+    const data={empresa_id:CE,cliente_id:clienteId,fecha:hoy.toISOString().slice(0,10),valida_hasta:validaHasta.toISOString().slice(0,10),nota:`Generada desde Punto de Venta · válida ${dias} día(s)`,lineas,subtotal:sub,iva,total:tot,numero,estado:'Borrador'};
+    const{error}=await supa.from('proformas').insert(data);
+    if(error){toast('Error al generar la proforma: '+error.message,'er');return}
+    imprimirProformaData(data);
+    posCart=[];posPagos=[];posTipoDoc='NOTA_VENTA';
+    renderPosVenta();
+    toast(`✓ Proforma ${numero} generada — válida ${dias} día(s)`,'ok');
+  }catch(e){
+    console.error('Error al generar la proforma:',e);
+    toast('Error inesperado: '+e.message,'er');
+  }finally{
+    posVentaEnProceso=false;
+    const btn=document.getElementById('btn_confirmar');
+    if(btn){btn.disabled=posCart.length===0;btn.textContent=posTipoDoc==='PROFORMA'?'📋 Generar Proforma':'✅ Confirmar venta'}
+  }
 }
 
 /* BUSCADOR DE PROFORMAS EN EL POS */
@@ -3182,6 +3248,8 @@ function renderListaProformasPOS(lista){
   }).join('');
 }
 async function cargarProformaEnPOS(id){
+  if(posProformaOrigenId){toast('Ya hay una proforma cargada en esta venta. Confirma o quita la actual antes de cargar otra.','er');return}
+  if(posCart.length>0&&!confirm('Ya tienes productos en el carrito. ¿Reemplazarlos con los de esta proforma?'))return;
   const pf=posProformasCache.find(p=>p.id===id);if(!pf)return;
   const idsProductos=[...new Set((pf.lineas||[]).map(l=>l.producto_id).filter(Boolean))];
   let costosMap={};
