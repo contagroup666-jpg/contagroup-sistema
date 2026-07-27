@@ -124,6 +124,7 @@ textarea.fc{resize:vertical;min-height:65px}
 .rhide{display:none!important}
 .mb{background:var(--w);border-radius:var(--rxl);width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column;box-shadow:var(--sh3);animation:mIn .2s cubic-bezier(.34,1.56,.64,1)}
 .mb.lg{max-width:700px}
+.mb.xl{max-width:920px}
 @keyframes mIn{from{opacity:0;transform:scale(.94) translateY(8px)}}
 .mh{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--n1)}
 .mh h3{font-family:var(--fd);font-size:14px;font-weight:600}
@@ -584,6 +585,19 @@ table.t tbody tr:hover{background:var(--b0)}
     <div><h2>Diagnóstico Contable IA</h2><p>Detecta asientos huérfanos, descuadres, facturas/compras sin contabilizar e inventario inconsistente — con explicación y solución redactadas por Claude IA</p></div>
     <button class="btn bp no-print" id="btnEjecutarDiag" onclick="ejecutarDiagnosticoIA()">🤖 Ejecutar diagnóstico</button>
   </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="ch"><span class="ct">🔑 Mi API Key personal de Claude</span></div>
+    <div class="cb">
+      <p style="font-size:12.5px;color:var(--n5);margin:0 0 10px">Cada contador o auxiliar usa <strong>su propia</strong> API key de Anthropic — se guarda cifrada, nunca en texto plano ni en el navegador. Cada quien paga su propio uso.</p>
+      <div id="miaKeyEstado" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span id="miaKeyBadge" class="badge bgr">Cargando...</span>
+        <input type="password" id="miaKeyInput" class="fc" style="max-width:320px" placeholder="sk-ant-...">
+        <button class="btn bp bsm" onclick="guardarMiApiKeyIA()">💾 Guardar</button>
+        <button class="btn bd bsm" id="btnEliminarMiaKey" onclick="eliminarMiApiKeyIA()" style="display:none">🗑 Eliminar</button>
+      </div>
+      <p style="font-size:11px;color:var(--n5);margin:8px 0 0">¿No tienes una? Consíguela gratis en <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> (incluye crédito de prueba).</p>
+    </div>
+  </div>
   <div id="diagEstadoActual" class="card" style="margin-bottom:14px">
     <div class="cb" style="text-align:center;color:var(--n5);padding:20px;font-size:13px">Aún no se ha ejecutado ningún diagnóstico para esta empresa</div>
   </div>
@@ -983,7 +997,66 @@ table.t tbody tr:hover{background:var(--b0)}
 <!-- MODALES -->
 <div class="mo" id="mAsi"><div class="mb lg"><div class="mh"><h3>📖 Nuevo Asiento</h3><button class="mx" onclick="closeM('mAsi')">✕</button></div><div class="mc"><div class="g2"><div class="fg"><label class="fl2">Concepto</label><input type="text" id="a_con" class="fc" placeholder="Descripción..."></div><div class="fg"><label class="fl2">Fecha</label><input type="date" id="a_fec" class="fc"></div></div><div class="div"></div><div class="lh lh3"><span>Cuenta</span><span>Debe</span><span>Haber</span><span></span></div><div id="lcAsi"></div><button class="btn bo bsm" onclick="addLA()" style="margin-top:4px">+ Línea</button><div class="bs2"><div class="bsr"><span>Total Debe:</span><strong class="fm" id="tDebe">$0.00</strong></div><div class="bsr"><span>Total Haber:</span><strong class="fm" id="tHaber">$0.00</strong></div><div class="bss ber2" id="balSt">❌ Desequilibrado</div></div></div><div class="mf"><button class="btn bo" onclick="closeM('mAsi')">Cancelar</button><button class="btn bp" onclick="saveAsi()">💾 Guardar</button></div></div></div>
 
-<div class="mo" id="mFac"><div class="mb lg"><div class="mh"><h3>📄 Nueva Factura</h3><button class="mx" onclick="closeM('mFac')">✕</button></div><div class="mc"><div class="g2"><div class="fg"><label class="fl2">Cliente</label><select id="f_cli" class="fc"><option value="">Seleccionar...</option></select></div><div class="fg"><label class="fl2">Fecha</label><input type="date" id="f_fec" class="fc"></div></div><div class="div"></div><div class="lh lh5"><span>Producto</span><span>Cantidad</span><span>Precio</span><span>Total</span><span></span></div><div id="lcFac"></div><button class="btn bo bsm" onclick="addLF()" style="margin-top:4px">+ Línea</button><div class="bs2"><div class="bsr"><span>Subtotal:</span><strong class="fm" id="f_sub">$0.00</strong></div><div class="bsr"><span>IVA:</span><strong class="fm" id="f_iva">$0.00</strong></div><div class="bsr" style="font-size:15px"><span><strong>TOTAL:</strong></span><strong class="fm" style="color:var(--b6)" id="f_tot">$0.00</strong></div></div></div><div class="mf"><button class="btn bo" onclick="closeM('mFac')">Cancelar</button><button class="btn bp" onclick="saveFac()">💾 Guardar</button></div></div></div>
+<div class="mo" id="mFac"><div class="mb xl"><div class="mh"><h3>📄 Nueva Factura Electrónica</h3><button class="mx" onclick="closeM('mFac')">✕</button></div><div class="mc">
+
+  <div class="g2">
+    <div class="fg"><label class="fl2">Cliente</label><select id="f_cli" class="fc" onchange="fac_cargarCliente()"><option value="">Seleccionar...</option></select></div>
+    <div class="fg"><label class="fl2">Tipo identificación</label><select id="f_tipo_id" class="fc"><option value="RUC">RUC</option><option value="CEDULA">Cédula</option><option value="PASAPORTE">Pasaporte</option><option value="CONSUMIDOR_FINAL">Consumidor Final</option></select></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label class="fl2">Dirección</label><input type="text" id="f_dir_cli" class="fc" placeholder="Dirección del cliente"></div>
+    <div class="fg"><label class="fl2">Email</label><input type="email" id="f_email_cli" class="fc" placeholder="correo@cliente.com"></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label class="fl2">Fecha emisión</label><input type="date" id="f_fec" class="fc"></div>
+    <div class="fg"><label class="fl2">Fecha vencimiento</label><input type="date" id="f_fecvenc" class="fc"></div>
+  </div>
+  <div class="fg"><label class="fl2">Forma de pago</label><select id="f_formapago" class="fc"><option value="CONTADO">Contado</option><option value="CREDITO">Crédito 30 días</option><option value="TARJETA">Tarjeta Crédito/Débito</option></select></div>
+
+  <div class="div"></div>
+  <p style="font-size:12px;font-weight:600;color:var(--n6);margin:6px 0">📦 Agregar producto</p>
+  <div class="g2">
+    <div class="fg"><label class="fl2">Producto del catálogo</label><select id="fi_prod" class="fc" onchange="fac_seleccionarProducto()"><option value="">Buscar en catálogo (opcional)...</option></select></div>
+    <div class="fg"><label class="fl2">Descripción</label><input type="text" id="fi_desc" class="fc" placeholder="Descripción del ítem"></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label class="fl2">Código principal</label><input type="text" id="fi_codp" class="fc" placeholder="Cód. principal"></div>
+    <div class="fg"><label class="fl2">Código auxiliar</label><input type="text" id="fi_codaux" class="fc" placeholder="Cód. auxiliar"></div>
+  </div>
+  <div class="fg"><label class="fl2">Detalle adicional</label><input type="text" id="fi_detalle" class="fc" placeholder="Ej: color, garantía, lote..."></div>
+  <div class="g2">
+    <div class="fg"><label class="fl2">Cantidad</label><input type="number" id="fi_cant" class="fc" value="1" min="0.01" step="0.01" oninput="fac_calcularPrecioNeto()"></div>
+    <div class="fg"><label class="fl2">Precio unitario</label><input type="number" id="fi_precio" class="fc" placeholder="0.00" step="0.01" oninput="fac_calcularPrecioNeto()"></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label class="fl2">Subsidio</label><input type="number" id="fi_subsidio" class="fc" value="0" step="0.01" oninput="fac_calcularPrecioNeto()"></div>
+    <div class="fg"><label class="fl2">Precio neto</label><input type="text" id="fi_precioneto" class="fc" readonly style="background:var(--n0);font-weight:600" value="0.00"></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label class="fl2">Descuento (%)</label><input type="number" id="fi_desc_pct" class="fc" value="0" min="0" max="100"></div>
+    <div class="fg"><label class="fl2">IVA</label><select id="fi_iva" class="fc"><option value="15">IVA 15%</option><option value="12">IVA 12%</option><option value="0">IVA 0%</option><option value="no">No objeto de IVA</option></select></div>
+  </div>
+  <button type="button" class="btn bo bsm" onclick="fac_agregarItem()" style="margin-top:2px">➕ Agregar a la factura</button>
+
+  <div class="div"></div>
+  <div class="tw"><table class="t" style="font-size:11.5px"><thead><tr><th>Cód.</th><th>Descripción</th><th class="tr">Cant.</th><th class="tr">P.Unit.</th><th class="tr">Neto</th><th class="tr">Desc%</th><th class="tr">Base</th><th>IVA</th><th class="tr">Total</th><th></th></tr></thead>
+  <tbody id="tFacItems"><tr><td colspan="10" class="te">Sin ítems agregados</td></tr></tbody></table></div>
+
+  <div class="bs2" style="margin-top:10px">
+    <div class="bsr"><span>Subtotal sin IVA:</span><strong class="fm" id="f_subtotal">$0.00</strong></div>
+    <div class="bsr"><span>Subtotal 0%:</span><strong class="fm" id="f_sub0">$0.00</strong></div>
+    <div class="bsr"><span>Subtotal 12%:</span><strong class="fm" id="f_sub12">$0.00</strong></div>
+    <div class="bsr"><span>Subtotal 15%:</span><strong class="fm" id="f_sub15">$0.00</strong></div>
+    <div class="bsr"><span>IVA 12%:</span><strong class="fm" id="f_iva12">$0.00</strong></div>
+    <div class="bsr"><span>IVA 15%:</span><strong class="fm" id="f_iva15">$0.00</strong></div>
+    <div class="bsr"><span>Descuento total:</span><strong class="fm" id="f_desctotal">$0.00</strong></div>
+    <div class="bsr" style="font-size:15px;border-top:1px solid var(--n2);margin-top:6px;padding-top:6px"><span><strong>TOTAL:</strong></span><strong class="fm" style="color:var(--b6)" id="f_tot">$0.00</strong></div>
+  </div>
+  <div style="background:var(--n0);border-radius:var(--rm);padding:8px 10px;margin-top:8px;font-size:11px;color:var(--n5)">
+    🔑 Clave de acceso: <span class="fm" id="f_claveacceso" style="word-break:break-all">se genera al guardar</span>
+  </div>
+
+</div><div class="mf"><button class="btn bo" onclick="closeM('mFac')">Cancelar</button><button class="btn bp" onclick="saveFac()">💾 Guardar y autorizar</button></div></div></div>
 
 <div class="mo" id="mCuenta"><div class="mb"><div class="mh"><h3>📒 <span id="mCuentaTtl">Nueva Cuenta</span></h3><button class="mx" onclick="closeM('mCuenta')">✕</button></div><div class="mc"><input type="hidden" id="c_id"><div class="g2"><div class="fg"><label class="fl2">Código</label><input type="text" id="c_cod" class="fc" placeholder="1.1.01"></div><div class="fg"><label class="fl2">Nombre</label><input type="text" id="c_nom2" class="fc"></div></div><div class="g2"><div class="fg"><label class="fl2">Clase</label><select id="c_cla" class="fc"><option value="1">1 - Activo</option><option value="2">2 - Pasivo</option><option value="3">3 - Patrimonio</option><option value="4">4 - Ingreso</option><option value="5">5 - Gasto</option></select></div><div class="fg"><label class="fl2">Tipo</label><input type="text" id="c_tip" class="fc" placeholder="Activo Corriente"></div></div><div class="fg"><label class="fl2">Saldo inicial</label><input type="number" step="0.01" id="c_sal" class="fc" placeholder="0.00"></div></div><div class="mf"><button class="btn bo" onclick="closeM('mCuenta')">Cancelar</button><button class="btn bp" onclick="saveCuenta()">💾 Guardar</button></div></div></div>
 
@@ -1912,7 +1985,16 @@ function quickNew(){if(CS==='pos')return;const m={dashboard:'mAsi',cuentas:'mCue
 function openM(id){
   document.getElementById(id)?.classList.add('open');
   if(id==='mAsi'){document.getElementById('a_fec').valueAsDate=new Date();document.getElementById('a_con').value='';document.getElementById('lcAsi').innerHTML='';addLA();addLA();calcT()}
-  if(id==='mFac'){document.getElementById('f_fec').valueAsDate=new Date();fillCliSel();document.getElementById('lcFac').innerHTML='';addLF();calcTF()}
+  if(id==='mFac'){
+    document.getElementById('f_fec').valueAsDate=new Date();
+    const venc=new Date();venc.setDate(venc.getDate()+30);document.getElementById('f_fecvenc').valueAsDate=venc;
+    document.getElementById('f_formapago').value='CONTADO';
+    document.getElementById('f_tipo_id').value='CONSUMIDOR_FINAL';
+    document.getElementById('f_dir_cli').value='';document.getElementById('f_email_cli').value='';
+    document.getElementById('f_claveacceso').textContent='se genera al guardar';
+    fillCliSel();fac_fillProdSel();
+    facCart=[];fac_renderItems();
+  }
   if(id==='mNom'){const n=new Date();const ms=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];document.getElementById('n_per').value=`${ms[n.getMonth()]}-${n.getFullYear()}`}
   if(id==='mLead'){document.getElementById('mLeadTtl').textContent='Nuevo Lead';document.getElementById('l_id').value='';['l_nom','l_con','l_ema','l_not'].forEach(x=>document.getElementById(x).value='');document.getElementById('l_val').value='';document.getElementById('l_eta').value='Prospecto';document.getElementById('l_fec').valueAsDate=new Date()}
   if(id==='mEmp'){document.getElementById('mEmpTtl').textContent='Nuevo Empleado';document.getElementById('e_id').value='';['e_nom','e_ced','e_car'].forEach(x=>document.getElementById(x).value='');document.getElementById('e_sal').value=''}
@@ -3588,23 +3670,253 @@ async function posConfirmarDevolucion(){
   if(CS==='pos')await loadPOS();
 }
 async function fillProdSel(sel){if(!CE)return;const{data}=await supa.from('productos').select('*').eq('empresa_id',CE).order('nombre');const ps=data||[];sel.innerHTML='<option value="">Seleccionar...</option>'+ps.map(p=>`<option value="${p.id}" data-p="${p.precio}">${p.nombre} ($${p.precio.toFixed(2)})</option>`).join('')}
-function addLF(){const c=document.getElementById('lcFac');const d=document.createElement('div');d.className='laf';d.innerHTML=`<select class="fc psel" style="font-size:12.5px" onchange="afp(this);calcTF()"><option>Seleccionar...</option></select><input type="number" value="1" min="1" class="fc qin" oninput="calcTF()"><input type="number" step="0.01" placeholder="0.00" class="fc prin" oninput="calcTF()"><input type="number" step="0.01" class="fc tlin" readonly style="background:var(--n0)"><button type="button" class="rlb" onclick="this.closest('.laf').remove();calcTF()">✕</button>`;c.appendChild(d);fillProdSel(d.querySelector('.psel'))}
 function afp(sel){const o=sel.options[sel.selectedIndex];if(o.dataset.p)sel.closest('.laf').querySelector('.prin').value=parseFloat(o.dataset.p).toFixed(2)}
-function calcTF(){let sub=0;document.querySelectorAll('#lcFac .laf').forEach(l=>{const q=parseFloat(l.querySelector('.qin').value)||0,p=parseFloat(l.querySelector('.prin').value)||0,t=q*p;l.querySelector('.tlin').value=t.toFixed(2);sub+=t});const iva=sub*IVA_RATE,tot=sub+iva;document.getElementById('f_sub').textContent=fmt(sub);document.getElementById('f_iva').textContent=fmt(iva);document.getElementById('f_tot').textContent=fmt(tot);return{sub,iva,tot}}
+
+/* ── Factura Electrónica SRI (formulario enriquecido) ──
+   A diferencia de la versión anterior, este flujo SÍ genera: movimientos de
+   inventario (salida), actualización de stock, CxC si es a crédito, y los
+   asientos contables completos (venta + costo de venta) con desglose de IVA
+   12%/15% — la versión previa de saveFac() no tocaba ninguna de estas tablas. */
+let facCart=[];
+async function fac_fillProdSel(){
+  if(!CE)return;
+  const{data}=await supa.from('productos').select('*').eq('empresa_id',CE).order('nombre');
+  const s=document.getElementById('fi_prod');
+  s.innerHTML='<option value="">Buscar en catálogo (opcional)...</option>'+(data||[]).map(p=>`<option value="${p.id}">${p.codigo||''} — ${p.nombre} ($${parseFloat(p.precio).toFixed(2)})</option>`).join('');
+}
+async function fac_cargarCliente(){
+  const cliId=document.getElementById('f_cli').value;
+  if(!cliId)return;
+  const{data:c}=await supa.from('clientes').select('*').eq('id',cliId).maybeSingle();
+  if(!c)return;
+  document.getElementById('f_tipo_id').value=c.tipo_identificacion||'RUC';
+  document.getElementById('f_dir_cli').value=c.direccion||'';
+  document.getElementById('f_email_cli').value=c.email||'';
+}
+async function fac_seleccionarProducto(){
+  const prodId=document.getElementById('fi_prod').value;
+  if(!prodId)return;
+  const{data:p}=await supa.from('productos').select('*').eq('id',prodId).maybeSingle();
+  if(!p)return;
+  document.getElementById('fi_codp').value=p.codigo||'';
+  document.getElementById('fi_codaux').value=p.codigo_auxiliar||'';
+  document.getElementById('fi_desc').value=p.nombre;
+  document.getElementById('fi_precio').value=parseFloat(p.precio).toFixed(2);
+  fac_calcularPrecioNeto();
+}
+function fac_calcularPrecioNeto(){
+  const precio=parseFloat(document.getElementById('fi_precio').value)||0;
+  const subsidio=parseFloat(document.getElementById('fi_subsidio').value)||0;
+  document.getElementById('fi_precioneto').value=(precio-subsidio).toFixed(2);
+}
+function fac_calcularItem(it){
+  const precioNeto=it.precio_unitario-it.subsidio;
+  const base=it.cantidad*precioNeto*(1-it.descuento_pct/100);
+  const iva=it.iva_tipo==='no'?0:base*(parseFloat(it.iva_tipo)/100);
+  return{precioNeto,base,iva,total:base+iva};
+}
+function fac_agregarItem(){
+  const codp=document.getElementById('fi_codp').value.trim();
+  const desc=document.getElementById('fi_desc').value.trim();
+  const cantidad=parseFloat(document.getElementById('fi_cant').value)||0;
+  const precio=parseFloat(document.getElementById('fi_precio').value)||0;
+  if(!desc)return toast('Ingresa la descripción del ítem','er');
+  if(cantidad<=0)return toast('Cantidad inválida','er');
+  if(precio<=0)return toast('Precio unitario inválido','er');
+  const prodId=document.getElementById('fi_prod').value||null;
+  facCart.push({
+    producto_id:prodId,codigo_principal:codp,codigo_auxiliar:document.getElementById('fi_codaux').value.trim(),
+    descripcion:desc,detalle_adicional:document.getElementById('fi_detalle').value.trim(),
+    cantidad,precio_unitario:precio,subsidio:parseFloat(document.getElementById('fi_subsidio').value)||0,
+    descuento_pct:parseFloat(document.getElementById('fi_desc_pct').value)||0,
+    iva_tipo:document.getElementById('fi_iva').value
+  });
+  fac_renderItems();
+  ['fi_prod'].forEach(id=>document.getElementById(id).value='');
+  ['fi_codp','fi_codaux','fi_desc','fi_detalle'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fi_cant').value='1';document.getElementById('fi_precio').value='';
+  document.getElementById('fi_subsidio').value='0';document.getElementById('fi_precioneto').value='0.00';
+  document.getElementById('fi_desc_pct').value='0';document.getElementById('fi_iva').value='15';
+}
+function fac_editarItem(idx){
+  const it=facCart[idx];if(!it)return;
+  document.getElementById('fi_prod').value=it.producto_id||'';
+  document.getElementById('fi_codp').value=it.codigo_principal||'';
+  document.getElementById('fi_codaux').value=it.codigo_auxiliar||'';
+  document.getElementById('fi_desc').value=it.descripcion;
+  document.getElementById('fi_detalle').value=it.detalle_adicional||'';
+  document.getElementById('fi_cant').value=it.cantidad;
+  document.getElementById('fi_precio').value=it.precio_unitario;
+  document.getElementById('fi_subsidio').value=it.subsidio;
+  document.getElementById('fi_desc_pct').value=it.descuento_pct;
+  document.getElementById('fi_iva').value=it.iva_tipo;
+  fac_calcularPrecioNeto();
+  facCart.splice(idx,1);fac_renderItems();
+}
+function fac_duplicarItem(idx){facCart.push({...facCart[idx]});fac_renderItems()}
+function fac_eliminarItem(idx){facCart.splice(idx,1);fac_renderItems()}
+function fac_renderItems(){
+  const tb=document.getElementById('tFacItems');
+  tb.innerHTML=facCart.length?facCart.map((it,idx)=>{
+    const c=fac_calcularItem(it);
+    return`<tr>
+      <td>${it.codigo_principal||'—'}</td>
+      <td style="text-align:left">${it.descripcion}${it.detalle_adicional?`<br><span style="color:var(--n5);font-size:10.5px">${it.detalle_adicional}</span>`:''}</td>
+      <td class="tr">${it.cantidad}</td>
+      <td class="tr">${fmt(it.precio_unitario)}</td>
+      <td class="tr">${fmt(c.precioNeto)}</td>
+      <td class="tr">${it.descuento_pct}%</td>
+      <td class="tr">${fmt(c.base)}</td>
+      <td>${it.iva_tipo==='no'?'No IVA':it.iva_tipo+'%'}</td>
+      <td class="tr fw">${fmt(c.total)}</td>
+      <td style="display:flex;gap:2px">
+        <button class="btn bo bsm bic" onclick="fac_duplicarItem(${idx})">📋</button>
+        <button class="btn bo bsm bic" onclick="fac_editarItem(${idx})">✏️</button>
+        <button class="btn bd bsm bic" onclick="fac_eliminarItem(${idx})">🗑</button>
+      </td></tr>`;
+  }).join(''):'<tr><td colspan="10" class="te">Sin ítems agregados</td></tr>';
+  fac_calcularTotales();
+}
+function fac_calcularTotales(){
+  let sub0=0,sub12=0,sub15=0,iva12=0,iva15=0,descTotal=0,subtotalSinIva=0;
+  facCart.forEach(it=>{
+    const c=fac_calcularItem(it);
+    const descAplicado=(it.cantidad*(it.precio_unitario-it.subsidio))*(it.descuento_pct/100);
+    descTotal+=descAplicado;
+    subtotalSinIva+=c.base;
+    if(it.iva_tipo==='no'||it.iva_tipo==='0')sub0+=c.base;
+    else if(it.iva_tipo==='12'){sub12+=c.base;iva12+=c.iva}
+    else if(it.iva_tipo==='15'){sub15+=c.base;iva15+=c.iva}
+  });
+  const total=subtotalSinIva+iva12+iva15;
+  document.getElementById('f_subtotal').textContent=fmt(subtotalSinIva);
+  document.getElementById('f_sub0').textContent=fmt(sub0);
+  document.getElementById('f_sub12').textContent=fmt(sub12);
+  document.getElementById('f_sub15').textContent=fmt(sub15);
+  document.getElementById('f_iva12').textContent=fmt(iva12);
+  document.getElementById('f_iva15').textContent=fmt(iva15);
+  document.getElementById('f_desctotal').textContent=fmt(descTotal);
+  document.getElementById('f_tot').textContent=fmt(total);
+  return{sub0,sub12,sub15,iva12,iva15,descTotal,subtotalSinIva,total};
+}
+function fac_digitoVerificadorMod11(clave){
+  const factores=[2,3,4,5,6,7];let suma=0,f=0;
+  for(let i=clave.length-1;i>=0;i--){suma+=parseInt(clave[i])*factores[f];f=(f+1)%6}
+  let dv=11-(suma%11);
+  if(dv===11)dv=0;if(dv===10)dv=1;
+  return dv;
+}
+function fac_generarClaveAcceso(fecha,rucEmisor,ambiente,establecimiento,puntoEmision,numero){
+  const f=new Date(fecha+'T00:00:00');
+  const dd=String(f.getDate()).padStart(2,'0'),mm=String(f.getMonth()+1).padStart(2,'0'),yyyy=f.getFullYear();
+  const fechaStr=`${dd}${mm}${yyyy}`;
+  const tipoComprobante='01';
+  const ruc=(rucEmisor||'9999999999999').replace(/\D/g,'').padEnd(13,'0').substring(0,13);
+  const amb=ambiente==='PRUEBAS'?'1':'2';
+  const serie=`${(establecimiento||'001').padStart(3,'0')}${(puntoEmision||'002').padStart(3,'0')}`;
+  const num=String(numero).padStart(9,'0');
+  const codigoNumerico=String(Math.floor(Math.random()*100000000)).padStart(8,'0');
+  const tipoEmision='1';
+  const clave48=`${fechaStr}${tipoComprobante}${ruc}${amb}${serie}${num}${codigoNumerico}${tipoEmision}`;
+  return clave48+fac_digitoVerificadorMod11(clave48);
+}
+async function fnCuentaPorCodigo(codigo){
+  const{data}=await supa.from('plan_cuentas').select('id').eq('empresa_id',CE).eq('codigo',codigo).maybeSingle();
+  return data?.id||null;
+}
 async function saveFac(){
   if(!CE)return toast('Selecciona una empresa','er');
-  const cli=document.getElementById('f_cli').value;const fec=document.getElementById('f_fec').value;
-  if(!cli||!fec)return toast('Selecciona cliente y fecha','er');
-  const{sub,iva,tot}=calcTF();if(sub<=0)return toast('Agrega productos con valor','er');
-  const items=[...document.querySelectorAll('#lcFac .laf')].map((l,i)=>{
-    const sel=l.querySelector('.psel');const nombre=sel.options[sel.selectedIndex]?.textContent||'Ítem';
-    return{nombre,cantidad:parseFloat(l.querySelector('.qin').value)||0,precio:parseFloat(l.querySelector('.prin').value)||0,total:parseFloat(l.querySelector('.tlin').value)||0,orden:i};
-  });
+  const cliId=document.getElementById('f_cli').value;
+  const fecha=document.getElementById('f_fec').value;
+  const fechaVenc=document.getElementById('f_fecvenc').value;
+  const formaPago=document.getElementById('f_formapago').value;
+  if(!fecha)return toast('Selecciona la fecha de emisión','er');
+  if(!facCart.length)return toast('Agrega al menos un producto','er');
+  const t=fac_calcularTotales();
+  if(t.total<=0)return toast('El total de la factura debe ser mayor a cero','er');
+
+  const cliente=cliId?(await supa.from('clientes').select('*').eq('id',cliId).maybeSingle()).data:null;
   const{count}=await supa.from('facturas').select('*',{count:'exact',head:true}).eq('empresa_id',CE);
-  const{data:nueva,error}=await supa.from('facturas').insert({empresa_id:CE,numero:`001-001-${String((count||0)+1).padStart(9,'0')}`,cliente_id:cli,fecha:fec,subtotal:sub,iva,total:tot,estado:'Autorizada'}).select().single();
+  const numeroSecuencial=(count||0)+1;
+  const numero=`${CEO?.establecimiento||'001'}-${CEO?.punto_emision||'002'}-${String(numeroSecuencial).padStart(9,'0')}`;
+  const claveAcceso=fac_generarClaveAcceso(fecha,CEO?.ruc,CEO?.ambiente,CEO?.establecimiento,CEO?.punto_emision,numeroSecuencial);
+  document.getElementById('f_claveacceso').textContent=claveAcceso;
+
+  const itemsJsonb=facCart.map(it=>{
+    const c=fac_calcularItem(it);
+    return{producto_id:it.producto_id,nombre:it.descripcion,cantidad:it.cantidad,precio:it.precio_unitario,
+      costo:0,codigo_principal:it.codigo_principal,codigo_auxiliar:it.codigo_auxiliar,detalle_adicional:it.detalle_adicional,
+      subsidio:it.subsidio,descuento_pct:it.descuento_pct,iva_tipo:it.iva_tipo,base_imponible:c.base,valor_iva:c.iva};
+  });
+  for(const it of itemsJsonb){
+    if(it.producto_id){
+      const{data:p}=await supa.from('productos').select('costo,stock').eq('id',it.producto_id).maybeSingle();
+      if(p){
+        if(p.stock<it.cantidad)return toast(`Stock insuficiente para "${it.nombre}" (disponible: ${p.stock})`,'er');
+        it.costo=p.costo||0;
+      }
+    }
+  }
+
+  const{data:nueva,error}=await supa.from('facturas').insert({
+    empresa_id:CE,numero,cliente_id:cliId||null,cliente_nombre:cliente?.nombre||'Consumidor Final',
+    fecha,fecha_vencimiento:fechaVenc||null,subtotal:t.subtotalSinIva,iva:t.iva12+t.iva15,total:t.total,
+    estado:'Autorizada',origen:'Manual',tipo_doc:'FACTURA',
+    pagos:formaPago==='CONTADO'?[{monto:t.total,metodo:'Efectivo'}]:[],
+    items:itemsJsonb,clave_acceso:claveAcceso,ambiente:CEO?.ambiente||'PRODUCCION',
+    establecimiento:CEO?.establecimiento||'001',punto_emision:CEO?.punto_emision||'002',
+    forma_pago:formaPago,tipo_identificacion_cliente:document.getElementById('f_tipo_id').value,
+    direccion_cliente:document.getElementById('f_dir_cli').value,email_cliente:document.getElementById('f_email_cli').value,
+    subtotal_0:t.sub0,subtotal_12:t.sub12,subtotal_15:t.sub15,iva_12:t.iva12,iva_15:t.iva15,
+    descuento_total:t.descTotal
+  }).select().single();
   if(error){toast('Error al guardar la factura: '+error.message,'er');return}
-  if(items.length)await supa.from('factura_items').insert(items.map(it=>({...it,factura_id:nueva.id})));
-  closeM('mFac');toast('Factura autorizada','ok');await loadFac();await loadDash();
+
+  if(facCart.length)await supa.from('factura_items').insert(facCart.map((it,i)=>{
+    const c=fac_calcularItem(it);
+    return{factura_id:nueva.id,nombre:it.descripcion,cantidad:it.cantidad,precio:it.precio_unitario,total:c.total,orden:i,
+      codigo_principal:it.codigo_principal,codigo_auxiliar:it.codigo_auxiliar,detalle_adicional:it.detalle_adicional,
+      subsidio:it.subsidio,descuento_pct:it.descuento_pct,iva_tipo:it.iva_tipo};
+  }));
+
+  const itemsConProducto=itemsJsonb.filter(it=>it.producto_id);
+  if(itemsConProducto.length){
+    await supa.from('movimientos_inv').insert(itemsConProducto.map(it=>({
+      empresa_id:CE,producto_id:it.producto_id,tipo:'salida',cantidad:it.cantidad,costo_unitario:it.costo,
+      vr_unitario:it.precio,fecha,ref:numero,nota:'Venta '+numero,factura_id:nueva.id
+    })));
+    for(const it of itemsConProducto){
+      const{data:p}=await supa.from('productos').select('stock').eq('id',it.producto_id).maybeSingle();
+      if(p)await supa.from('productos').update({stock:p.stock-it.cantidad}).eq('id',it.producto_id);
+    }
+  }
+
+  if(formaPago==='CREDITO'&&cliId){
+    await supa.from('cxc_cargos').insert({empresa_id:CE,cliente_id:cliId,concepto:'Factura '+numero,fecha,total:t.total,fecha_vencimiento:fechaVenc||fecha});
+  }
+
+  const cuentaCobro=formaPago==='CREDITO'?'1.1.02.01':'1.1.01.01';
+  const{data:asVta}=await supa.from('asientos').insert({empresa_id:CE,numero:'ASI-VTA-'+numero,concepto:'Venta '+numero,fecha,debe:t.total,haber:t.total,estado:'Auto',creado_por:CU?.id||null}).select().single();
+  if(asVta){
+    const cCobro=await fnCuentaPorCodigo(cuentaCobro);
+    const cVentas=await fnCuentaPorCodigo('4.1.01');
+    const cIva=await fnCuentaPorCodigo('2.1.02.01');
+    const lineas=[{asiento_id:asVta.id,cuenta_id:cCobro,debe:t.total,haber:0,orden:1},{asiento_id:asVta.id,cuenta_id:cVentas,debe:0,haber:t.subtotalSinIva,orden:2}];
+    if(t.iva12>0)lineas.push({asiento_id:asVta.id,cuenta_id:cIva,debe:0,haber:t.iva12,orden:3});
+    if(t.iva15>0)lineas.push({asiento_id:asVta.id,cuenta_id:cIva,debe:0,haber:t.iva15,orden:4});
+    await supa.from('asiento_lineas').insert(lineas);
+  }
+  const costoTotal=itemsConProducto.reduce((s,it)=>s+it.cantidad*it.costo,0);
+  if(costoTotal>0){
+    const{data:asCV}=await supa.from('asientos').insert({empresa_id:CE,numero:'ASI-CV-'+numero,concepto:'Costo de venta '+numero,fecha,debe:costoTotal,haber:costoTotal,estado:'Auto',creado_por:CU?.id||null}).select().single();
+    if(asCV){
+      const cCosto=await fnCuentaPorCodigo('5.1.01');
+      const cInv=await fnCuentaPorCodigo('1.1.03.01');
+      await supa.from('asiento_lineas').insert([{asiento_id:asCV.id,cuenta_id:cCosto,debe:costoTotal,haber:0,orden:1},{asiento_id:asCV.id,cuenta_id:cInv,debe:0,haber:costoTotal,orden:2}]);
+    }
+  }
+
+  closeM('mFac');toast('Factura '+numero+' autorizada','ok');await loadFac();await loadDash();
 }
 async function delFac(id){
   if(!confirm('¿Eliminar esta factura?'))return;
@@ -5984,6 +6296,7 @@ function mdBasico(txt){
 let diagCache=[];
 async function loadDiagnosticoIA(){
   if(!CE)return;
+  await loadEstadoApiKeyIA();
   const{data:diagsD}=await supa.from('diagnosticos_contables').select('*').eq('empresa_id',CE).order('created_at',{ascending:false});
   diagCache=diagsD||[];
   document.getElementById('tDiagnosticos').innerHTML=diagCache.length?diagCache.map(d=>`<tr>
@@ -6003,6 +6316,51 @@ function verDiagnostico(id){
   el.innerHTML=`<div class="ch"><span class="ct">${d.total_hallazgos>0?'⚠️ '+d.total_hallazgos+' hallazgo(s) detectado(s)':'✅ Sin hallazgos'}</span><span style="font-size:11.5px;color:var(--n5)">Ejecutado: ${new Date(d.created_at).toLocaleString('es-EC')}</span></div>
   <div class="cb" style="font-size:13.5px;line-height:1.5">${mdBasico(d.reporte_ia)}</div>`;
 }
+
+/* ── API Key personal de IA (por contador/auxiliar) ──
+   Se guarda cifrada en Supabase Vault a través de la Edge Function
+   'gestionar-api-key-ia'. Nunca se almacena ni se ve en el navegador —
+   una vez enviada, el campo se limpia y solo queda un estado (Configurada/No). */
+async function loadEstadoApiKeyIA(){
+  const badge=document.getElementById('miaKeyBadge');
+  const btnEliminar=document.getElementById('btnEliminarMiaKey');
+  try{
+    const{data,error}=await supa.functions.invoke('gestionar-api-key-ia',{body:{accion:'estado'}});
+    if(error)throw error;
+    const cred=data?.credencial;
+    if(cred){
+      const estadoTxt=cred.estado_verificacion==='Válida'?'✅ Configurada y verificada':cred.estado_verificacion==='Inválida'?'⚠️ Configurada pero inválida (revísala)':'🔑 Configurada (sin verificar aún)';
+      badge.className='badge '+(cred.estado_verificacion==='Inválida'?'br':'bg');
+      badge.textContent=estadoTxt;
+      btnEliminar.style.display='';
+      document.getElementById('miaKeyInput').placeholder='••••••••••••••••';
+    }else{
+      badge.className='badge bgr';
+      badge.textContent='Sin configurar';
+      btnEliminar.style.display='none';
+    }
+  }catch(err){
+    badge.className='badge bgr';
+    badge.textContent='No se pudo verificar el estado';
+  }
+}
+async function guardarMiApiKeyIA(){
+  const input=document.getElementById('miaKeyInput');
+  const key=input.value.trim();
+  if(!key||key.length<10)return toast('Ingresa una API key válida','er');
+  const{data,error}=await supa.functions.invoke('gestionar-api-key-ia',{body:{accion:'guardar',api_key:key}});
+  input.value='';
+  if(error||data?.error){toast('Error al guardar tu API key: '+(data?.error||error.message),'er');return}
+  toast('Tu API key personal quedó guardada de forma segura','ok');
+  await loadEstadoApiKeyIA();
+}
+async function eliminarMiApiKeyIA(){
+  if(!confirm('¿Eliminar tu API key personal? Ya no podrás usar el Diagnóstico IA hasta que agregues una nueva.'))return;
+  const{data,error}=await supa.functions.invoke('gestionar-api-key-ia',{body:{accion:'eliminar'}});
+  if(error||data?.error){toast('Error al eliminar: '+(data?.error||error.message),'er');return}
+  toast('API key eliminada','wn');
+  await loadEstadoApiKeyIA();
+}
 async function ejecutarDiagnosticoIA(){
   if(!CE)return toast('Selecciona una empresa','er');
   const btn=document.getElementById('btnEjecutarDiag');
@@ -6010,12 +6368,16 @@ async function ejecutarDiagnosticoIA(){
   document.getElementById('diagEstadoActual').innerHTML='<div class="cb" style="text-align:center;color:var(--n5);padding:24px;font-size:13px">Ejecutando reglas de detección y consultando a Claude IA...</div>';
   try{
     const{data,error}=await supa.functions.invoke('diagnostico-ia',{body:{empresa_id:CE}});
-    if(error)throw error;
-    if(data?.error)throw new Error(data.error);
+    if(error){
+      let mensaje=error.message;
+      try{const body=await error.context.json();mensaje=body.mensaje||body.error||mensaje}catch(_e){}
+      throw new Error(mensaje);
+    }
+    if(data?.error)throw new Error(data.mensaje||data.error);
     toast(data.diagnostico.total_hallazgos>0?'Diagnóstico completado: '+data.diagnostico.total_hallazgos+' hallazgo(s)':'Diagnóstico completado: sin hallazgos','ok');
     await loadDiagnosticoIA();
   }catch(err){
-    document.getElementById('diagEstadoActual').innerHTML=`<div class="cb" style="color:var(--er5);font-size:13px;padding:16px">❌ Error al ejecutar el diagnóstico: ${err.message||err}</div>`;
+    document.getElementById('diagEstadoActual').innerHTML=`<div class="cb" style="color:var(--er5);font-size:13px;padding:16px">❌ ${err.message||err}</div>`;
     toast('Error: '+(err.message||err),'er');
   }finally{
     btn.disabled=false;btn.textContent='🤖 Ejecutar diagnóstico';
