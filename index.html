@@ -408,6 +408,10 @@ table.t tbody tr:hover{background:var(--b0)}
     <div class="kc am"><div class="ki">📉</div><div class="kl">Pasivos</div><div class="kv" id="kP">$0</div><div class="kf"><span class="kch fl">—</span><span class="ks">deudas</span></div></div>
     <div class="kc pu"><div class="ki">🎯</div><div class="kl">Pipeline CRM</div><div class="kv" id="kCRM">$0</div><div class="kf"><span class="kch up">▲</span><span class="ks" id="kCRMSub">oportunidades</span></div></div>
   </div>
+  <div class="card" id="cardPendientesDia" style="margin-bottom:14px;display:none">
+    <div class="ch"><span class="ct">⏳ Pendientes del día</span><span style="font-size:11px;color:var(--n5)" id="pendFecha"></span></div>
+    <div class="cb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px" id="pendGrid"></div>
+  </div>
   <div class="g2" style="margin-bottom:14px">
     <div class="card"><div class="ch"><span class="ct">📈 Ventas vs Gastos</span><span style="font-size:11px;color:var(--n5);background:var(--n1);padding:3px 9px;border-radius:99px">Últimos 7 meses</span></div><div class="cb" style="position:relative;height:220px"><canvas id="chartVentasGastosResumen"></canvas></div></div>
     <div class="card"><div class="ch"><span class="ct">🥯 Egresos por Categoría</span><span style="font-size:11px;color:var(--n5);background:var(--n1);padding:3px 9px;border-radius:99px">Mes en curso</span></div><div class="cb" id="egresosCatBody" style="display:flex;align-items:center;gap:16px;min-height:220px"><div style="position:relative;width:150px;height:150px;flex-shrink:0"><canvas id="chartEgresosCatDonut"></canvas></div><div id="egresosCatLeyenda" style="font-size:12.5px;flex:1"></div></div></div>
@@ -1931,6 +1935,47 @@ function closeM(id){document.getElementById(id)?.classList.remove('open')}
 document.addEventListener('click',e=>{if(e.target.classList.contains('mo'))e.target.classList.remove('open')});
 
 /* DASHBOARD */
+/* ── Pendientes del día (widget de Dashboard) ──
+   Junta lo que quedó sin cerrar: CxC por cobrar, CxP por pagar, proformas
+   pendientes, facturas anuladas recientes, devoluciones recientes y el saldo
+   de caja chica. Solo se muestra la tarjeta si hay algo pendiente. */
+async function loadPendientesDia(){
+  const card=document.getElementById('cardPendientesDia');
+  if(!CE){card.style.display='none';return}
+  const[cxcCargos,cxcAbonos,cxpPend,proformasPend,facAnuladas,devs,cajaChica]=await Promise.all([
+    supa.from('cxc_cargos').select('id,total').eq('empresa_id',CE),
+    supa.from('cxc_abonos').select('cargo_id,monto').eq('empresa_id',CE),
+    supa.from('compras').select('id,total').eq('empresa_id',CE).eq('estado','Pendiente'),
+    supa.from('proformas').select('id,total').eq('empresa_id',CE).eq('estado','Pendiente'),
+    supa.from('facturas').select('id,total').eq('empresa_id',CE).eq('estado','Anulada'),
+    supa.from('devoluciones').select('id,total').eq('empresa_id',CE),
+    supa.from('caja_chica').select('saldo_actual').eq('empresa_id',CE).eq('estado','Activa').maybeSingle()
+  ]);
+  const abonosPorCargo={};(cxcAbonos.data||[]).forEach(a=>{abonosPorCargo[a.cargo_id]=(abonosPorCargo[a.cargo_id]||0)+parseFloat(a.monto||0)});
+  const cxcPendData=(cxcCargos.data||[]).filter(c=>parseFloat(c.total||0)-(abonosPorCargo[c.id]||0)>0.01);
+  const cxcMonto=cxcPendData.reduce((s,c)=>s+(parseFloat(c.total||0)-(abonosPorCargo[c.id]||0)),0);
+  const cxpMonto=(cxpPend.data||[]).reduce((s,c)=>s+parseFloat(c.total||0),0);
+  const items=[
+    {label:'CxC por cobrar',n:cxcPendData.length,monto:cxcMonto,icon:'💰',accion:()=>nav('cxc')},
+    {label:'CxP por pagar',n:cxpPend.data?.length||0,monto:cxpMonto,icon:'🧾',accion:()=>nav('compras')},
+    {label:'Proformas pendientes',n:proformasPend.data?.length||0,monto:(proformasPend.data||[]).reduce((s,p)=>s+parseFloat(p.total||0),0),icon:'📋',accion:null},
+    {label:'Facturas anuladas',n:facAnuladas.data?.length||0,monto:null,icon:'🚫',accion:()=>nav('facturas')},
+    {label:'Devoluciones',n:devs.data?.length||0,monto:(devs.data||[]).reduce((s,d)=>s+parseFloat(d.total||0),0),icon:'↩️',accion:null}
+  ];
+  if(cajaChica.data){
+    items.push({label:'Saldo Caja Chica',n:null,monto:cajaChica.data.saldo_actual,icon:'🪙',accion:()=>nav('caja_chica'),siempre:true});
+  }
+  const hayPendientes=items.some(i=>(i.n||0)>0);
+  if(!hayPendientes){card.style.display='none';return}
+  card.style.display='';
+  document.getElementById('pendFecha').textContent=new Date().toLocaleDateString('es-EC',{day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('pendGrid').innerHTML=items.filter(i=>(i.n||0)>0||i.siempre).map(i=>`
+    <div style="background:var(--n0);border-radius:var(--rm);padding:10px 12px;${i.accion?'cursor:pointer':''}" ${i.accion?`onclick="nav('${i.label.includes('CxC')?'cxc':i.label.includes('CxP')?'compras':i.label.includes('anuladas')?'facturas':'caja_chica'}')"`:''}>
+      <div style="font-size:11px;color:var(--n5);display:flex;align-items:center;gap:4px">${i.icon} ${i.label}</div>
+      <div style="font-size:18px;font-weight:700;margin-top:2px">${i.n!==null?i.n:fmt(i.monto)}</div>
+      ${i.monto!==null&&i.n!==null?`<div style="font-size:11px;color:var(--n5)">${fmt(i.monto)}</div>`:''}
+    </div>`).join('');
+}
 async function loadDash(){
   if(!CE)return;
   const{data:cs}=await supa.from('plan_cuentas').select('*').eq('empresa_id',CE);
@@ -1938,6 +1983,7 @@ async function loadDash(){
   let A=0,P=0,I=0;cuentas.forEach(c=>{if(c.clase===1)A+=c.saldo||0;else if(c.clase===2)P+=c.saldo||0;else if(c.clase===4)I+=c.saldo||0});
   document.getElementById('kA').textContent=fmt(A);document.getElementById('kP').textContent=fmt(P);document.getElementById('kI').textContent=fmt(I);
   document.getElementById('dTitle').textContent=CEO?.nombre||'Dashboard';
+  await loadPendientesDia();
   const leads=CE?(await supa.from('leads').select('*').eq('empresa_id',CE)).data||[]:[];
   document.getElementById('kCRM').textContent=fmt(leads.reduce((s,l)=>s+(l.valor||0),0));
   const facs=(await supa.from('facturas').select('*').eq('empresa_id',CE).order('created_at',{ascending:false}).limit(5)).data||[];
