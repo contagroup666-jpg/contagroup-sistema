@@ -1935,7 +1935,7 @@ async function crearEmpresaAutoservicio(){
 }
 const NAV_VENTAS=['facturas','cxc','crm'];
 const NAV_INVENTARIO=['inventario','estadisticas'];
-const NAV_CONTABILIDAD=['cuentas','asientos','conciliacion','reportes','finanzas','tesoreria','bancos','caja','compras','retenciones','ats','ice'];
+const NAV_CONTABILIDAD=['cuentas','asientos','conciliacion','reportes','finanzas','tesoreria','bancos','caja','caja_chica','compras','solicitudes','retenciones','ats','ice','diagnostico_ia','cierre_fiscal'];
 const NAV_NOMINA=['nomina','rubros','nomina_detalle','empleados_perfil'];
 async function applyRoleUI(){
   if(!CU)return;
@@ -2526,7 +2526,7 @@ async function loadAsi(){
 }
 async function fillCtas(c){
   if(!CE)return;
-  const{data:cs}=await supa.from('plan_cuentas').select('*').eq('empresa_id',CE).order('codigo');
+  const{data:cs}=await supa.from('plan_cuentas').select('*').eq('empresa_id',CE).eq('es_detalle',true).order('codigo');
   const cuentas=cs||[];
   c.querySelectorAll('.csel').forEach(s=>{const v=s.value;s.innerHTML='<option value="">Seleccionar...</option>'+cuentas.map(c=>`<option value="${c.id}"${c.id===v?' selected':''}>${c.codigo} — ${c.nombre}</option>`).join('')});
 }
@@ -2544,7 +2544,13 @@ async function saveAsi(){
   const{data:nuevo,error}=await supa.from('asientos').insert({empresa_id:CE,numero,concepto:con,fecha:fec,debe:D,haber:H,estado:'Aprobado',creado_por:CU?.id||null}).select().single();
   if(error){toast('Error al guardar el asiento: '+error.message,'er');return}
   const lineasInsert=lineas.map((l,i)=>({asiento_id:nuevo.id,cuenta_id:l.cuenta_id,debe:l.debe,haber:l.haber,orden:i}));
-  await supa.from('asiento_lineas').insert(lineasInsert);
+  const{error:errLineas}=await supa.from('asiento_lineas').insert(lineasInsert);
+  if(errLineas){
+    // Si las líneas fallan (ej: cuenta de agrupación, dato inválido) NO se deja el encabezado huérfano
+    await supa.from('asientos').delete().eq('id',nuevo.id);
+    toast('No se pudo guardar: '+errLineas.message,'er');
+    return;
+  }
   for(const l of lineas){await postearCuentaPorId(l.cuenta_id,l.debe,l.haber)}
   closeM('mAsi');toast('Asiento guardado y posteado a las cuentas','ok');await loadAsi();await loadDash();
 }
@@ -3820,9 +3826,9 @@ function fac_generarClaveAcceso(fecha,rucEmisor,ambiente,establecimiento,puntoEm
   const clave48=`${fechaStr}${tipoComprobante}${ruc}${amb}${serie}${num}${codigoNumerico}${tipoEmision}`;
   return clave48+fac_digitoVerificadorMod11(clave48);
 }
-async function fnCuentaPorCodigo(codigo){
-  const{data}=await supa.from('plan_cuentas').select('id').eq('empresa_id',CE).eq('codigo',codigo).maybeSingle();
-  return data?.id||null;
+async function fnResolverCuenta(patron){
+  const{data}=await supa.rpc('fn_resolver_cuenta',{p_empresa_id:CE,p_patron:patron});
+  return data||null;
 }
 async function saveFac(){
   if(!CE)return toast('Selecciona una empresa','er');
@@ -3895,12 +3901,11 @@ async function saveFac(){
     await supa.from('cxc_cargos').insert({empresa_id:CE,cliente_id:cliId,concepto:'Factura '+numero,fecha,total:t.total,fecha_vencimiento:fechaVenc||fecha});
   }
 
-  const cuentaCobro=formaPago==='CREDITO'?'1.1.02.01':'1.1.01.01';
   const{data:asVta}=await supa.from('asientos').insert({empresa_id:CE,numero:'ASI-VTA-'+numero,concepto:'Venta '+numero,fecha,debe:t.total,haber:t.total,estado:'Auto',creado_por:CU?.id||null}).select().single();
   if(asVta){
-    const cCobro=await fnCuentaPorCodigo(cuentaCobro);
-    const cVentas=await fnCuentaPorCodigo('4.1.01');
-    const cIva=await fnCuentaPorCodigo('2.1.02.01');
+    const cCobro=await fnResolverCuenta(formaPago==='CREDITO'?'Cuentas por Cobrar':'Caja');
+    const cVentas=await fnResolverCuenta('Ventas');
+    const cIva=await fnResolverCuenta('IVA por Pagar')||await fnResolverCuenta('Impuestos por Pagar');
     const lineas=[{asiento_id:asVta.id,cuenta_id:cCobro,debe:t.total,haber:0,orden:1},{asiento_id:asVta.id,cuenta_id:cVentas,debe:0,haber:t.subtotalSinIva,orden:2}];
     if(t.iva12>0)lineas.push({asiento_id:asVta.id,cuenta_id:cIva,debe:0,haber:t.iva12,orden:3});
     if(t.iva15>0)lineas.push({asiento_id:asVta.id,cuenta_id:cIva,debe:0,haber:t.iva15,orden:4});
@@ -3910,8 +3915,8 @@ async function saveFac(){
   if(costoTotal>0){
     const{data:asCV}=await supa.from('asientos').insert({empresa_id:CE,numero:'ASI-CV-'+numero,concepto:'Costo de venta '+numero,fecha,debe:costoTotal,haber:costoTotal,estado:'Auto',creado_por:CU?.id||null}).select().single();
     if(asCV){
-      const cCosto=await fnCuentaPorCodigo('5.1.01');
-      const cInv=await fnCuentaPorCodigo('1.1.03.01');
+      const cCosto=await fnResolverCuenta('Costo de Ventas');
+      const cInv=await fnResolverCuenta('Inventario');
       await supa.from('asiento_lineas').insert([{asiento_id:asCV.id,cuenta_id:cCosto,debe:costoTotal,haber:0,orden:1},{asiento_id:asCV.id,cuenta_id:cInv,debe:0,haber:costoTotal,orden:2}]);
     }
   }
@@ -6178,6 +6183,7 @@ async function loadSolicitudes(){
     <td style="display:flex;gap:4px">
       ${s.estado==='Pendiente'?`<button class="btn bs bsm bic" title="Aprobar" onclick="aprobarSolicitudUI('${s.id}')">✔</button><button class="btn bd bsm bic" title="Rechazar" onclick="rechazarSolicitudUI('${s.id}')">✕</button>`:''}
       ${s.estado==='Aprobada'&&s.tipo==='Compra'?`<button class="btn bo bsm bic" title="Convertir a Compra" onclick="convertirSolicitudUI('${s.id}')">🔄</button>`:''}
+      ${s.estado==='Aprobada'&&s.tipo==='Venta'?`<button class="btn bo bsm bic" title="Convertir a Factura" onclick="convertirSolicitudVentaUI('${s.id}')">🔄</button>`:''}
     </td></tr>`).join(''):'<tr><td colspan="9" class="te">Sin solicitudes registradas</td></tr>';
 }
 async function abrirNuevaSolicitud(tipo){
@@ -6273,6 +6279,15 @@ async function convertirSolicitudUI(id){
   const{error}=await supa.rpc('fn_convertir_solicitud_compra',{p_solicitud_id:id,p_numero_compra:numeroCompra,p_item_id:itemCompra.id,p_cuenta_id:cuentaInv.id,p_usuario_id:CU?.id||null});
   if(error){toast('Error al convertir: '+error.message,'er');return}
   toast('Solicitud convertida en Compra Nº '+numeroCompra,'ok');await loadSolicitudes();
+}
+async function convertirSolicitudVentaUI(id){
+  if(!confirm('¿Convertir esta solicitud en una Factura real de venta?'))return;
+  const numeroFactura=prompt('Número de la factura a generar:');
+  if(!numeroFactura)return;
+  const formaPago=confirm('¿Es a crédito? Aceptar = Crédito, Cancelar = Contado')?'CREDITO':'CONTADO';
+  const{error}=await supa.rpc('fn_convertir_solicitud_venta',{p_solicitud_id:id,p_numero_factura:numeroFactura,p_usuario_id:CU?.id||null,p_forma_pago:formaPago});
+  if(error){toast('Error al convertir: '+error.message,'er');return}
+  toast('Solicitud convertida en Factura Nº '+numeroFactura,'ok');await loadSolicitudes();await loadDash();
 }
 
 /* ── Diagnóstico Contable con IA ──
