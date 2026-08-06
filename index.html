@@ -696,6 +696,7 @@ table.t tbody tr:hover{background:var(--b0)}
 </section>
 <section id="s-facturas" class="pg hidden">
   <div class="pg-hd" style="display:flex;align-items:flex-start;justify-content:space-between"><div><h2>Facturas Electrónicas</h2><p>Emisión, control y exportación PDF</p></div><div class="row no-print"><button class="btn bo" onclick="openM('mCli')">+ Cliente</button><button class="btn bp" onclick="openM('mFac')">+ Nueva Factura</button></div></div>
+  <div class="row no-print" style="margin-bottom:10px;gap:8px"><input type="text" id="fac_buscar" class="fc" placeholder="🔍 Buscar por número de factura (ej. 001-002-000000123)" style="max-width:340px" oninput="fac_filtrarPorNumero()" onkeydown="if(event.key==='Enter')fac_filtrarPorNumero()"><button class="btn bo bsm" onclick="fac_filtrarPorNumero()">Buscar</button><button class="btn bo bsm" onclick="document.getElementById('fac_buscar').value='';fac_filtrarPorNumero()">Limpiar</button></div>
   <div class="card"><div class="tw"><table class="t"><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th class="tr">Subtotal</th><th class="tr">IVA</th><th class="tr">Total</th><th>Estado</th><th></th></tr></thead><tbody id="tFac"><tr><td colspan="8" class="te">Sin facturas</td></tr></tbody></table></div></div>
 </section>
 <!-- CRM -->
@@ -997,7 +998,7 @@ table.t tbody tr:hover{background:var(--b0)}
 <!-- MODALES -->
 <div class="mo" id="mAsi"><div class="mb lg"><div class="mh"><h3>📖 Nuevo Asiento</h3><button class="mx" onclick="closeM('mAsi')">✕</button></div><div class="mc"><div class="g2"><div class="fg"><label class="fl2">Concepto</label><input type="text" id="a_con" class="fc" placeholder="Descripción..."></div><div class="fg"><label class="fl2">Fecha</label><input type="date" id="a_fec" class="fc"></div></div><div class="div"></div><div class="lh lh3"><span>Cuenta</span><span>Debe</span><span>Haber</span><span></span></div><div id="lcAsi"></div><button class="btn bo bsm" onclick="addLA()" style="margin-top:4px">+ Línea</button><div class="bs2"><div class="bsr"><span>Total Debe:</span><strong class="fm" id="tDebe">$0.00</strong></div><div class="bsr"><span>Total Haber:</span><strong class="fm" id="tHaber">$0.00</strong></div><div class="bss ber2" id="balSt">❌ Desequilibrado</div></div></div><div class="mf"><button class="btn bo" onclick="closeM('mAsi')">Cancelar</button><button class="btn bp" onclick="saveAsi()">💾 Guardar</button></div></div></div>
 
-<div class="mo" id="mFac"><div class="mb xl"><div class="mh"><h3>📄 Nueva Factura Electrónica</h3><button class="mx" onclick="closeM('mFac')">✕</button></div><div class="mc">
+<div class="mo" id="mFac"><div class="mb xl"><div class="mh"><h3>📄 <span id="mFacTtl">Nueva Factura Electrónica</span></h3><button class="mx" onclick="closeM('mFac')">✕</button></div><div class="mc"><input type="hidden" id="f_id">
 
   <div class="g2">
     <div class="fg"><label class="fl2">Cliente</label><select id="f_cli" class="fc" onchange="fac_cargarCliente()"><option value="">Seleccionar...</option></select></div>
@@ -1056,7 +1057,31 @@ table.t tbody tr:hover{background:var(--b0)}
     🔑 Clave de acceso: <span class="fm" id="f_claveacceso" style="word-break:break-all">se genera al guardar</span>
   </div>
 
-</div><div class="mf"><button class="btn bo" onclick="closeM('mFac')">Cancelar</button><button class="btn bp" onclick="saveFac()">💾 Guardar y autorizar</button></div></div></div>
+</div><div class="mf"><button class="btn bo" onclick="closeM('mFac')">Cancelar</button><button class="btn bp" id="f_btn_guardar" onclick="saveFac()">💾 Guardar y autorizar</button></div></div></div>
+
+<div class="mo" id="mFacVer"><div class="mb xl"><div class="mh"><h3>👁 Consultar Factura <span id="mFacVerNum" class="fm"></span></h3><button class="mx" onclick="closeM('mFacVer')">✕</button></div><div class="mc">
+  <div class="g2">
+    <div class="fg"><label class="fl2">Cliente</label><div id="fv_cli" class="fc" style="background:var(--n0)"></div></div>
+    <div class="fg"><label class="fl2">Identificación</label><div id="fv_ident" class="fc" style="background:var(--n0)"></div></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label class="fl2">Fecha emisión</label><div id="fv_fec" class="fc" style="background:var(--n0)"></div></div>
+    <div class="fg"><label class="fl2">Fecha vencimiento</label><div id="fv_fecvenc" class="fc" style="background:var(--n0)"></div></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label class="fl2">Forma de pago</label><div id="fv_formapago" class="fc" style="background:var(--n0)"></div></div>
+    <div class="fg"><label class="fl2">Estado</label><div id="fv_estado" class="fc" style="background:var(--n0)"></div></div>
+  </div>
+  <div class="div"></div>
+  <div class="tw"><table class="t" style="font-size:11.5px"><thead><tr><th>Cód.</th><th>Descripción</th><th class="tr">Cant.</th><th class="tr">P.Unit.</th><th class="tr">Desc%</th><th>IVA</th><th class="tr">Total</th></tr></thead>
+  <tbody id="fv_items"></tbody></table></div>
+  <div class="bs2" style="margin-top:10px">
+    <div class="bsr"><span>Subtotal:</span><strong class="fm" id="fv_subtotal">$0.00</strong></div>
+    <div class="bsr"><span>IVA:</span><strong class="fm" id="fv_ivatot">$0.00</strong></div>
+    <div class="bsr" style="font-size:15px;border-top:1px solid var(--n2);margin-top:6px;padding-top:6px"><span><strong>TOTAL:</strong></span><strong class="fm" style="color:var(--b6)" id="fv_tot">$0.00</strong></div>
+  </div>
+  <div style="background:var(--n0);border-radius:var(--rm);padding:8px 10px;margin-top:8px;font-size:11px;color:var(--n5)">🔑 Clave de acceso: <span class="fm" id="fv_clave" style="word-break:break-all"></span></div>
+</div><div class="mf"><button class="btn bo" onclick="closeM('mFacVer')">Cerrar</button></div></div></div>
 
 <div class="mo" id="mCuenta"><div class="mb"><div class="mh"><h3>📒 <span id="mCuentaTtl">Nueva Cuenta</span></h3><button class="mx" onclick="closeM('mCuenta')">✕</button></div><div class="mc"><input type="hidden" id="c_id"><div class="g2"><div class="fg"><label class="fl2">Código</label><input type="text" id="c_cod" class="fc" placeholder="1.1.01"></div><div class="fg"><label class="fl2">Nombre</label><input type="text" id="c_nom2" class="fc"></div></div><div class="g2"><div class="fg"><label class="fl2">Clase</label><select id="c_cla" class="fc"><option value="1">1 - Activo</option><option value="2">2 - Pasivo</option><option value="3">3 - Patrimonio</option><option value="4">4 - Ingreso</option><option value="5">5 - Gasto</option></select></div><div class="fg"><label class="fl2">Tipo</label><input type="text" id="c_tip" class="fc" placeholder="Activo Corriente"></div></div><div class="fg"><label class="fl2">Saldo inicial</label><input type="number" step="0.01" id="c_sal" class="fc" placeholder="0.00"></div></div><div class="mf"><button class="btn bo" onclick="closeM('mCuenta')">Cancelar</button><button class="btn bp" onclick="saveCuenta()">💾 Guardar</button></div></div></div>
 
@@ -1986,6 +2011,10 @@ function openM(id){
   document.getElementById(id)?.classList.add('open');
   if(id==='mAsi'){document.getElementById('a_fec').valueAsDate=new Date();document.getElementById('a_con').value='';document.getElementById('lcAsi').innerHTML='';addLA();addLA();calcT()}
   if(id==='mFac'){
+    document.getElementById('f_id').value='';
+    document.getElementById('mFacTtl').textContent='Nueva Factura Electrónica';
+    document.getElementById('f_btn_guardar').textContent='💾 Guardar y autorizar';
+    document.getElementById('f_cli').value='';
     document.getElementById('f_fec').valueAsDate=new Date();
     const venc=new Date();venc.setDate(venc.getDate()+30);document.getElementById('f_fecvenc').valueAsDate=venc;
     document.getElementById('f_formapago').value='CONTADO';
@@ -3054,17 +3083,28 @@ async function abrirLedger(cargoId){
   </tr>`).join('');
   document.getElementById('mLedger').classList.add('open');
 }
+let facCache=[];let facCliMap={};
 async function loadFac(){
   const tb=document.getElementById('tFac');
   if(!CE){tb.innerHTML='<tr><td colspan="8" class="te">Selecciona una empresa</td></tr>';return}
   const{data,error}=await supa.from('facturas').select('*').eq('empresa_id',CE).order('created_at',{ascending:false});
   if(error){console.error(error);tb.innerHTML='<tr><td colspan="8" class="te">Error al cargar las facturas</td></tr>';return}
-  const facs=data||[];
-  const{data:clisD}=await supa.from('clientes').select('*').eq('empresa_id',CE);const clis=clisD||[];const cm={};clis.forEach(c=>cm[c.id]=c.nombre);
+  facCache=data||[];
+  const{data:clisD}=await supa.from('clientes').select('*').eq('empresa_id',CE);const clis=clisD||[];facCliMap={};clis.forEach(c=>facCliMap[c.id]=c.nombre);
+  const buscar=(document.getElementById('fac_buscar')?.value||'').trim();
+  fac_renderTablaFac(buscar?facCache.filter(f=>(f.numero||'').toLowerCase().includes(buscar.toLowerCase())):facCache);
+}
+function fac_filtrarPorNumero(){
+  const q=(document.getElementById('fac_buscar').value||'').trim().toLowerCase();
+  fac_renderTablaFac(q?facCache.filter(f=>(f.numero||'').toLowerCase().includes(q)):facCache);
+}
+function fac_renderTablaFac(facs){
+  const tb=document.getElementById('tFac');
+  const cm=facCliMap;
   tb.innerHTML=facs.length?facs.map(f=>{
     const anulada=f.estado==='Anulada';
-    return`<tr style="${anulada?'opacity:.55':''}"><td class="fm fw" style="font-size:11.5px">${f.numero}</td><td>${f.fecha}</td><td>${cm[f.cliente_id]||f.cliente_nombre||'N/D'}</td><td class="tr fm">${fmt(f.subtotal)}</td><td class="tr fm">${fmt(f.iva)}</td><td class="tr fm fw" style="color:var(--b6)">${fmt(f.total)}</td><td>${bdg(f.estado||'Pendiente')}</td><td style="display:flex;gap:4px"><button class="btn bo bsm bic" onclick="pdfFac('${f.id}')" title="PDF">📄</button>${anulada?'':`<button class="btn bd bsm bic" onclick="anularFactura('${f.id}')" title="Anular factura">⛔</button>`}</td></tr>`;
-  }).join(''):'<tr><td colspan="8" class="te">Sin facturas</td></tr>';
+    return`<tr style="${anulada?'opacity:.55':''}"><td class="fm fw" style="font-size:11.5px">${f.numero}</td><td>${f.fecha}</td><td>${cm[f.cliente_id]||f.cliente_nombre||'N/D'}</td><td class="tr fm">${fmt(f.subtotal)}</td><td class="tr fm">${fmt(f.iva)}</td><td class="tr fm fw" style="color:var(--b6)">${fmt(f.total)}</td><td>${bdg(f.estado||'Pendiente')}</td><td style="display:flex;gap:4px"><button class="btn bo bsm bic" onclick="verFactura('${f.id}')" title="Ver / consultar">👁</button>${anulada?'':`<button class="btn bo bsm bic" onclick="editarFactura('${f.id}')" title="Editar factura">✏️</button>`}<button class="btn bo bsm bic" onclick="pdfFac('${f.id}')" title="PDF">📄</button>${anulada?'':`<button class="btn bd bsm bic" onclick="anularFactura('${f.id}')" title="Anular factura">⛔</button>`}</td></tr>`;
+  }).join(''):'<tr><td colspan="8" class="te">'+(document.getElementById('fac_buscar')?.value?'Sin resultados para ese número':'Sin facturas')+'</td></tr>';
 }
 async function anularFactura(id){
   const{data:f,error}=await supa.from('facturas').select('*').eq('id',id).maybeSingle();
@@ -3830,8 +3870,45 @@ async function fnResolverCuenta(patron){
   const{data}=await supa.rpc('fn_resolver_cuenta',{p_empresa_id:CE,p_patron:patron});
   return data||null;
 }
+async function updateFacExistente(facId){
+  const cliId=document.getElementById('f_cli').value;
+  const fecha=document.getElementById('f_fec').value;
+  const fechaVenc=document.getElementById('f_fecvenc').value;
+  const formaPago=document.getElementById('f_formapago').value;
+  if(!fecha)return toast('Selecciona la fecha de emisión','er');
+  if(!facCart.length)return toast('Agrega al menos un producto','er');
+  const t=fac_calcularTotales();
+  if(t.total<=0)return toast('El total de la factura debe ser mayor a cero','er');
+  if(!confirm('¿Actualizar esta factura?\n\nEl inventario y los asientos contables (venta y costo de venta) se recalcularán automáticamente para reflejar los nuevos datos.'))return;
+
+  const cliente=cliId?(await supa.from('clientes').select('*').eq('id',cliId).maybeSingle()).data:null;
+  const itemsJsonb=facCart.map(it=>{
+    const c=fac_calcularItem(it);
+    return{producto_id:it.producto_id,nombre:it.descripcion,cantidad:it.cantidad,precio:it.precio_unitario,
+      codigo_principal:it.codigo_principal,codigo_auxiliar:it.codigo_auxiliar,detalle_adicional:it.detalle_adicional,
+      subsidio:it.subsidio,descuento_pct:it.descuento_pct,iva_tipo:it.iva_tipo,base_imponible:c.base,valor_iva:c.iva};
+  });
+
+  const{data,error}=await supa.rpc('fn_actualizar_factura',{
+    p_factura_id:facId,p_cliente_id:cliId||null,p_cliente_nombre:cliente?.nombre||'Consumidor Final',
+    p_fecha:fecha,p_fecha_vencimiento:fechaVenc||null,p_forma_pago:formaPago,
+    p_tipo_identificacion:document.getElementById('f_tipo_id').value,
+    p_direccion_cliente:document.getElementById('f_dir_cli').value,p_email_cliente:document.getElementById('f_email_cli').value,
+    p_items:itemsJsonb,p_subtotal:t.subtotalSinIva,p_iva:t.iva12+t.iva15,p_total:t.total,
+    p_subtotal_0:t.sub0,p_subtotal_12:t.sub12,p_subtotal_15:t.sub15,p_iva_12:t.iva12,p_iva_15:t.iva15,
+    p_descuento_total:t.descTotal,p_usuario_id:CU?.id||null
+  });
+  if(error){toast('Error al actualizar la factura: '+error.message,'er');return}
+
+  closeM('mFac');
+  const aviso=data?.aviso||'';
+  toast('Factura actualizada — inventario y asientos contables recalculados'+aviso,aviso?'wn':'ok');
+  await loadFac();await loadDash();
+}
 async function saveFac(){
   if(!CE)return toast('Selecciona una empresa','er');
+  const facId=document.getElementById('f_id').value;
+  if(facId)return updateFacExistente(facId);
   const cliId=document.getElementById('f_cli').value;
   const fecha=document.getElementById('f_fec').value;
   const fechaVenc=document.getElementById('f_fecvenc').value;
@@ -3928,6 +4005,54 @@ async function delFac(id){
   const{error}=await supa.from('facturas').delete().eq('id',id);
   if(error){toast('No se pudo eliminar la factura','er');return}
   toast('Eliminada','wn');await loadFac();
+}
+async function verFactura(id){
+  const{data:f,error}=await supa.from('facturas').select('*').eq('id',id).maybeSingle();
+  if(error||!f){toast('No se pudo cargar la factura','er');return}
+  document.getElementById('mFacVerNum').textContent=f.numero;
+  document.getElementById('fv_cli').textContent=f.cliente_nombre||facCliMap[f.cliente_id]||'Consumidor Final';
+  document.getElementById('fv_ident').textContent=`${f.tipo_identificacion_cliente||'—'}${f.direccion_cliente?' — '+f.direccion_cliente:''}`;
+  document.getElementById('fv_fec').textContent=f.fecha||'—';
+  document.getElementById('fv_fecvenc').textContent=f.fecha_vencimiento||'—';
+  document.getElementById('fv_formapago').textContent=f.forma_pago||'—';
+  document.getElementById('fv_estado').textContent=f.estado||'Pendiente';
+  document.getElementById('fv_clave').textContent=f.clave_acceso||'—';
+  const items=Array.isArray(f.items)?f.items:[];
+  document.getElementById('fv_items').innerHTML=items.length?items.map(it=>{
+    const base=it.base_imponible!=null?it.base_imponible:(it.cantidad*it.precio);
+    const total=base+(it.valor_iva||0);
+    return`<tr><td>${it.codigo_principal||'—'}</td><td style="text-align:left">${it.nombre}${it.detalle_adicional?`<br><span style="color:var(--n5);font-size:10.5px">${it.detalle_adicional}</span>`:''}</td><td class="tr">${it.cantidad}</td><td class="tr">${fmt(it.precio)}</td><td class="tr">${it.descuento_pct||0}%</td><td>${it.iva_tipo==='no'?'No IVA':(it.iva_tipo||'')+'%'}</td><td class="tr fw">${fmt(total)}</td></tr>`;
+  }).join(''):'<tr><td colspan="7" class="te">Sin ítems</td></tr>';
+  document.getElementById('fv_subtotal').textContent=fmt(f.subtotal);
+  document.getElementById('fv_ivatot').textContent=fmt(f.iva);
+  document.getElementById('fv_tot').textContent=fmt(f.total);
+  document.getElementById('mFacVer').classList.add('open');
+}
+async function editarFactura(id){
+  const{data:f,error}=await supa.from('facturas').select('*').eq('id',id).maybeSingle();
+  if(error||!f){toast('No se pudo cargar la factura','er');return}
+  if(f.estado==='Anulada')return toast('No se puede editar una factura anulada','er');
+  await fillCliSel();await fac_fillProdSel();
+  document.getElementById('f_id').value=f.id;
+  document.getElementById('mFacTtl').textContent='Editar Factura '+f.numero;
+  document.getElementById('f_btn_guardar').textContent='💾 Actualizar factura';
+  document.getElementById('f_cli').value=f.cliente_id||'';
+  document.getElementById('f_tipo_id').value=f.tipo_identificacion_cliente||'CONSUMIDOR_FINAL';
+  document.getElementById('f_dir_cli').value=f.direccion_cliente||'';
+  document.getElementById('f_email_cli').value=f.email_cliente||'';
+  document.getElementById('f_fec').value=f.fecha||'';
+  document.getElementById('f_fecvenc').value=f.fecha_vencimiento||'';
+  document.getElementById('f_formapago').value=f.forma_pago||'CONTADO';
+  document.getElementById('f_claveacceso').textContent=f.clave_acceso||'se genera al guardar';
+  const items=Array.isArray(f.items)?f.items:[];
+  facCart=items.map(it=>({
+    producto_id:it.producto_id||null,codigo_principal:it.codigo_principal||'',codigo_auxiliar:it.codigo_auxiliar||'',
+    descripcion:it.nombre,detalle_adicional:it.detalle_adicional||'',cantidad:it.cantidad,precio_unitario:it.precio,
+    subsidio:it.subsidio||0,descuento_pct:it.descuento_pct||0,iva_tipo:it.iva_tipo||'15'
+  }));
+  fac_renderItems();
+  document.getElementById('mFac').classList.add('open');
+  toast('Editando factura — al guardar, el inventario y los asientos contables se recalcularán automáticamente','wn');
 }
 async function cargarLogoBase64(){
   if(!CEO?.logo_url)return null;
