@@ -332,6 +332,13 @@ table.t tbody tr:hover{background:var(--b0)}
         <a href="#" id="lg_forgot" onclick="recuperarPassword();return false" style="font-size:11.5px;color:rgba(255,255,255,.5);text-decoration:none">¿Olvidaste tu contraseña?</a>
       </div>
       <button id="lg_btn" onclick="doLogin()" style="width:100%;background:linear-gradient(135deg,var(--b6),var(--b5));color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:600;font-family:var(--fd);cursor:pointer;letter-spacing:.2px;transition:all .2s;box-shadow:0 4px 16px rgba(45,114,210,.4)" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 8px 24px rgba(45,114,210,.5)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(45,114,210,.4)'">Ingresar al sistema</button>
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 14px">
+        <div style="flex:1;height:1px;background:rgba(255,255,255,.1)"></div>
+        <span style="font-size:10.5px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.08em">o</span>
+        <div style="flex:1;height:1px;background:rgba(255,255,255,.1)"></div>
+      </div>
+      <button id="lg_demo_btn" onclick="entrarComoDemo()" type="button" style="width:100%;background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(201,162,39,.5);border-radius:10px;padding:12px;font-size:13px;font-weight:600;font-family:var(--fd);cursor:pointer;letter-spacing:.2px;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px" onmouseover="this.style.background='rgba(201,162,39,.12)'" onmouseout="this.style.background='rgba(255,255,255,.06)'">🚀 Ingresar como Demo (Admin Empresa)</button>
+      <p style="font-size:10.5px;color:rgba(255,255,255,.3);margin:8px 0 0;text-align:center">Explora el sistema con una empresa de ejemplo, sin registrarte</p>
     </div>
     <div style="text-align:center;margin-top:16px">
       <a href="#" id="lg_switch" onclick="swAuthMode(AUTH_MODE==='login'?'signup':'login');return false" style="font-size:12px;color:rgba(255,255,255,.55);text-decoration:none;display:inline-block;margin-bottom:8px">¿Primera vez? <b>Crea tu cuenta</b></a>
@@ -2346,8 +2353,10 @@ async function loadFzRatios(){
   const roe=totalPatrimonio>0?(utilidad/totalPatrimonio*100):0;
   const roa=totalActivo>0?(utilidad/totalActivo*100):0;
   const margenNeto=totalIngreso>0?(utilidad/totalIngreso*100):0;
-  const{data:cxcD}=await supa.from('cargos').select('*').eq('empresa_id',CE);
-  const cxcPend=(cxcD||[]).filter(c=>c.estado!=='Pagado').reduce((s,c)=>s+((c.monto||0)-(c.pagado||0)),0);
+  const{data:cxcD}=await supa.from('cxc_cargos').select('id,total').eq('empresa_id',CE);
+  const{data:abonosD}=await supa.from('cxc_abonos').select('cargo_id,monto').eq('empresa_id',CE);
+  const abonadoPorCargo=(abonosD||[]).reduce((acc,a)=>{acc[a.cargo_id]=(acc[a.cargo_id]||0)+(Number(a.monto)||0);return acc},{});
+  const cxcPend=(cxcD||[]).reduce((s,c)=>s+Math.max(0,(Number(c.total)||0)-(abonadoPorCargo[c.id]||0)),0);
   const rotacionCartera=totalIngreso>0?(cxcPend/totalIngreso*365):0;
   const row=(l,v)=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--n1)"><span style="color:var(--n5)">${l}</span><strong>${v}</strong></div>`;
   document.getElementById('fzRatiosLiq').innerHTML=row('Razón corriente',razonCorriente.toFixed(2)+'x')+row('Prueba ácida',pruebaAcida.toFixed(2)+'x')+`<p style="font-size:11px;color:var(--n4);margin-top:8px">Ideal ≥ 1.5x. Mide capacidad de pagar deudas a corto plazo.</p>`;
@@ -4845,6 +4854,14 @@ async function doLogin(){
     await startApp();
   }catch(e){console.error('Error en login:',e);toast('Error al iniciar sesión: '+e.message,'er')}
   finally{if(btn){btn.disabled=false;btn.textContent='Ingresar al sistema'}}
+}
+async function entrarComoDemo(){
+  document.getElementById('lg_email').value='demo@contagroup.app';
+  document.getElementById('lg_pwd').value='ContaDemo2026!';
+  const btn=document.getElementById('lg_demo_btn');
+  if(btn){btn.disabled=true;btn.textContent='Entrando al demo...'}
+  try{await doLogin()}
+  finally{if(btn){btn.disabled=false;btn.textContent='🚀 Ingresar como Demo (Admin Empresa)'}}
 }
 async function doSignup(){
   const btn=document.getElementById('lg_btn');
