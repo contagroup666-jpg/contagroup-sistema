@@ -1822,14 +1822,32 @@ async function postearCuenta(codigo,debe,haber){
   if(!c){console.warn('Cuenta contable no encontrada para postear:',codigo);return false}
   return postearCuentaPorId(c.id,debe,haber);
 }
-// Usado por módulos aún no migrados (CxC, Compras, Caja, Inventario) para seguir
-// posteando sus asientos automáticos al libro diario de Supabase.
+// DEPRECADA — ya NO crea nada. La versión anterior insertaba solo el ENCABEZADO del asiento
+// sin sus líneas (asiento_lineas), dejando "asientos huérfanos" que descuadraban el libro
+// diario — bug real encontrado en auditoría (ver historial). Los flujos que aún no tienen una
+// cuenta contraparte determinable (ajuste manual de inventario, rol de nómina detallado,
+// ingreso/egreso manual de caja) deben registrarse a mano en Libro Diario mientras se les
+// diseña su propio mapeo contable. NO reactivar esta función — usar crearAsientoDoble() si
+// la contraparte sí se conoce.
 async function crearAsientoAuto(prefijo,concepto,fecha,monto){
-  if(!CE)return null;
-  const{count}=await supa.from('asientos').select('*',{count:'exact',head:true}).eq('empresa_id',CE);
-  const numero=`${prefijo}-${String((count||0)+1).padStart(3,'0')}`;
-  const{data,error}=await supa.from('asientos').insert({empresa_id:CE,numero,concepto,fecha,debe:monto,haber:monto,estado:'Auto',creado_por:CU?.id||null}).select().single();
-  if(error){console.error('Error creando asiento automático',error);return null}
+  console.warn('crearAsientoAuto() está deprecada y no registra nada:',{prefijo,concepto,fecha,monto});
+  toast(`"${concepto}" no se contabilizó automáticamente — regístralo manualmente en Libro Diario`,'wn');
+  return null;
+}
+// Reemplaza el patrón postearCuenta()+crearAsientoAuto() para flujos donde SÍ se conoce la
+// cuenta contraparte. Usa fn_crear_asiento (RPC atómico en Supabase): valida permiso sobre la
+// empresa y que debe=haber, e inserta encabezado+líneas en una sola transacción. El saldo de
+// cada cuenta se recalcula solo (trigger trg_asiento_lineas_saldo) — por eso aquí NUNCA se
+// llama a postearCuenta(), evita descuadrar el saldo con un doble ajuste.
+async function crearAsientoDoble(prefijo,concepto,fecha,monto,codigoDebe,codigoHaber){
+  if(!CE||!monto||monto<=0)return null;
+  const{data:cuentas,error:ec}=await supa.from('plan_cuentas').select('id,codigo').eq('empresa_id',CE).in('codigo',[codigoDebe,codigoHaber]);
+  if(ec){toast('No se pudo preparar el asiento contable: '+ec.message,'er');return null}
+  const idDebe=(cuentas||[]).find(c=>c.codigo===codigoDebe)?.id;
+  const idHaber=(cuentas||[]).find(c=>c.codigo===codigoHaber)?.id;
+  if(!idDebe||!idHaber){toast(`Cuenta contable no encontrada (${codigoDebe} / ${codigoHaber}). No se registró el asiento — hazlo manualmente en Libro Diario.`,'er');return null}
+  const{data,error}=await supa.rpc('fn_crear_asiento',{p_empresa_id:CE,p_concepto:concepto,p_fecha:fecha,p_lineas:[{cuenta_id:idDebe,debe:monto,haber:0},{cuenta_id:idHaber,debe:0,haber:monto}],p_creado_por:CU?.id||null,p_prefijo:prefijo});
+  if(error){toast('Error al contabilizar: '+error.message,'er');return null}
   return data;
 }
 
@@ -2108,10 +2126,14 @@ async function loadDash(){
     try{window._chartEgresosCatDonut=new Chart(ctxDonut,{type:'doughnut',data:{labels:catEntries.length?catEntries.map(e=>e[0]):['Sin egresos'],datasets:[{data:catEntries.length?catEntries.map(e=>e[1]):[1],backgroundColor:catEntries.length?coloresCat:['#E5E9EF'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{display:false}}}})}catch(e){console.warn('No se pudo dibujar el donut de egresos',e)}
   }
   document.getElementById('egresosCatLeyenda').innerHTML=catEntries.length?catEntries.map((e,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0"><span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:${coloresCat[i%coloresCat.length]};display:inline-block"></span>${e[0]}</span><strong class="fm">${fmt(e[1])}</strong></div>`).join(''):'<p style="color:var(--n4);font-size:12px">Sin egresos este mes</p>';
-
-  await loadDashProfesional();
 }
-function swDash(tab,btn){['resumen','profesional','pro'].forEach(t=>document.getElementById('dash-'+t)?.classList.add('hidden'));document.getElementById('dash-'+tab)?.classList.remove('hidden');document.querySelectorAll('#s-dashboard .stab:not(.dpPer)').forEach(b=>b.classList.remove('on'));btn?.classList.add('on');if(tab==='pro')loadDashPro()}
+// Optimización: antes loadDash() llamaba a loadDashProfesional() SIEMPRE al final, aunque esa
+// pestaña empieza oculta (dash-profesional tiene class="hidden") y la mayoría de usuarios nunca
+// la abre — eso disparaba ~6 consultas extra (plan_cuentas otra vez, detalle_nomina, compras,
+// nomina, facturas otra vez, proveedores) en cada carga del dashboard sin necesidad. Ahora se
+// carga perezosamente solo cuando el usuario realmente abre esa pestaña, igual que ya funcionaba
+// la pestaña "pro".
+function swDash(tab,btn){['resumen','profesional','pro'].forEach(t=>document.getElementById('dash-'+t)?.classList.add('hidden'));document.getElementById('dash-'+tab)?.classList.remove('hidden');document.querySelectorAll('#s-dashboard .stab:not(.dpPer)').forEach(b=>b.classList.remove('on'));btn?.classList.add('on');if(tab==='pro')loadDashPro();else if(tab==='profesional')loadDashProfesional()}
 async function loadDashProfesional(){
   if(!CE)return;
   const{data:csData}=await supa.from('plan_cuentas').select('*').eq('empresa_id',CE);
@@ -2632,8 +2654,7 @@ async function saveNotaCredito(){
   const monto=tipo==='porcentaje'?saldo*val/100:Math.min(val,saldo);
   if(monto<=0)return toast('Monto de descuento inválido','er');
   await supa.from('cxc_notas_credito').insert({empresa_id:CE,cargo_id:cargoId,cliente_id:cg.cliente_id,tipo,valor:val,monto,motivo,fecha,usuario:(CU?.nombre||'—')});
-  await postearCuenta('4.2.01',monto,0);await postearCuenta('1.1.03',0,monto);
-  await crearAsientoAuto('NC',`Nota de crédito: ${motivo} (${cg.concepto})`,fecha,monto);
+  await crearAsientoDoble('NC',`Nota de crédito: ${motivo} (${cg.concepto})`,fecha,monto,'4.2.01','1.1.03');
   closeM('mNotaCredito');toast('Descuento aplicado y asentado en contabilidad','ok');
   await loadCXCModule();await loadNotasCredito();
 }
@@ -2795,8 +2816,7 @@ async function saveServicio(){
 async function pagarServicio(id){
   const s=await DB.get('servicios_basicos',id);if(!s)return;
   await DB.put('servicios_basicos',{...s,estado:'Pagado',fecha_pago:new Date().toISOString().slice(0,10)});
-  await postearCuenta('5.3.01',s.monto||0,0);await postearCuenta('1.1.01',0,s.monto||0);
-  const ex=await crearAsientoAuto('SB',`Pago servicio: ${s.tipo} ${s.periodo||''}`,new Date().toISOString().slice(0,10),s.monto);
+  await crearAsientoDoble('SB',`Pago servicio: ${s.tipo} ${s.periodo||''}`,new Date().toISOString().slice(0,10),s.monto,'5.3.01','1.1.01');
   toast('Servicio pagado y asentado en contabilidad','ok');await loadServicios();
 }
 async function delServicio(id){if(!confirm('¿Eliminar este servicio?'))return;await DB.delete('servicios_basicos',id);await loadServicios();}
@@ -2980,7 +3000,11 @@ async function saveCargo(){
   }else{
     const{error}=await supa.from('cxc_cargos').insert(data);
     if(error){toast('Error al registrar: '+error.message,'er');return}
-    await postearCuenta('1.1.03',total,0);await crearAsientoAuto('CXC',`Cargo CXC: ${concepto}`,data.fecha,total);
+    // NOTA: un cargo CXC (venta a crédito) requiere Debe 1.1.03 (CXC) / Haber Ingresos, pero
+    // este formulario no determina la cuenta de ingresos correspondiente. Se registra el cargo
+    // en cxc_cargos, pero SIN asiento automático — regístralo a mano en Libro Diario si necesitas
+    // que impacte el plan de cuentas de inmediato. (Antes aquí había un postearCuenta() de un
+    // solo lado que descuadraba el saldo sin crear un asiento real — ya removido.)
   }
   closeM('mCargo');toast(id?'Cargo actualizado':'Cargo registrado','ok');await loadCXCModule();
 }
@@ -3025,8 +3049,7 @@ async function saveAbono(){
   const{error}=await supa.from('cxc_abonos').insert({empresa_id:CE,cargo_id:cargoId,cliente_id:cg.cliente_id,monto,fecha,metodo,referencia:document.getElementById('ab_ref').value.trim(),observacion:document.getElementById('ab_obs').value.trim()});
   if(error){toast('Error al registrar el abono: '+error.message,'er');return}
   const cuentaDestino=metodo==='Efectivo'?'1.1.01':metodo==='Tarjeta'?'1.1.02':'1.1.02';
-  await postearCuenta('1.1.03',0,monto);await postearCuenta(cuentaDestino,monto,0);
-  await crearAsientoAuto('ABN',`Abono CXC: ${cg.concepto} (${metodo})`,fecha,monto);
+  await crearAsientoDoble('ABN',`Abono CXC: ${cg.concepto} (${metodo})`,fecha,monto,cuentaDestino,'1.1.03');
   closeM('mAbono');toast(`Abono de ${fmt(monto)} registrado`,'ok');await loadCXCModule();
 }
 async function abrirLedger(cargoId){
@@ -5173,9 +5196,7 @@ async function confirmarPagoCompra(){
     const cuentaId=document.getElementById('pc_cuenta').value||null;
     await supa.from('movimientos_banco').insert({empresa_id:CE,cuenta_id:cuentaId,tipo:'egreso',monto,concepto,referencia:c.numero,fecha});
   }
-  await crearAsientoAuto('ASI',`${concepto} (Cuentas por Pagar / ${forma==='Efectivo'?'Caja':'Bancos'})`,fecha,monto);
-  await postearCuenta('2.1.01',monto,0);
-  await postearCuenta(forma==='Efectivo'?'1.1.01':'1.1.02',0,monto);
+  await crearAsientoDoble('CMP',`${concepto} (Cuentas por Pagar / ${forma==='Efectivo'?'Caja':'Bancos'})`,fecha,monto,'2.1.01',forma==='Efectivo'?'1.1.01':'1.1.02');
   await supa.from('compras').update({estado:'Pagado',fecha_pago:fecha,forma_pago:forma}).eq('id',id);
   closeM('mPagoCompra');toast('Pago registrado: '+fmt(monto),'ok');
   await loadCompras();
