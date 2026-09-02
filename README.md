@@ -1810,6 +1810,12 @@ function toast(msg,type){
   c.appendChild(d);
   setTimeout(()=>{d.style.opacity='0';setTimeout(()=>d.remove(),300)},3000);
 }
+async function obtenerConfigCuentas(empresaId){
+  const eid=empresaId||CE;
+  if(!eid)return null;
+  const{data}=await supa.from('config_cuentas_contables').select('*').eq('empresa_id',eid).maybeSingle();
+  return data;
+}
 async function postearCuentaPorId(idCuenta,debe,haber){
   const{data:c,error}=await supa.from('plan_cuentas').select('*').eq('id',idCuenta).maybeSingle();
   if(error||!c)return false;
@@ -3101,15 +3107,28 @@ async function anularFactura(id){
       await supa.from('movimientos_inv').insert({empresa_id:f.empresa_id,producto_id:it.producto_id,tipo:'entrada',cantidad:it.cantidad||0,costo_unitario:it.costo||0,vr_unitario:it.costo||0,ref:'ANULACION',factura_id:String(id),nota:`Anulación de factura ${f.numero}`});
     }
     if(f.origen==='POS'&&Array.isArray(f.pagos)&&f.pagos.length){
-      for(const p of f.pagos){const monto=parseFloat(p.monto)||0;if(monto<=0)continue;
-        if(p.metodo==='Efectivo')await postearCuenta('1.1.01',0,monto);
-        else if(p.metodo==='Credito')await postearCuenta('1.1.03',0,monto);
-        else await postearCuenta('1.1.02',0,monto);
-      }
-      await postearCuenta('4.1.01',f.subtotal||0,0);
-      await postearCuenta('2.1.02',f.iva||0,0);
+      const cfgCta=await obtenerConfigCuentas(f.empresa_id);
       const costoTotal=(items||[]).reduce((a,i)=>a+(i.costo||0)*(i.cantidad||0),0);
-      if(costoTotal>0){await postearCuenta('5.1.01',0,costoTotal);await postearCuenta('1.2.01',costoTotal,0)}
+      const metodosUsados=new Set(f.pagos.filter(p=>(parseFloat(p.monto)||0)>0).map(p=>p.metodo));
+      const faltantesAnul=[];
+      if(metodosUsados.has('Efectivo')&&!cfgCta?.cuenta_caja_id)faltantesAnul.push('Caja');
+      if((metodosUsados.has('Tarjeta')||metodosUsados.has('Transferencia'))&&!cfgCta?.cuenta_bancos_id)faltantesAnul.push('Bancos');
+      if(metodosUsados.has('Credito')&&!cfgCta?.cuenta_cxc_id)faltantesAnul.push('Cuentas por Cobrar');
+      if(!cfgCta?.cuenta_ventas_id)faltantesAnul.push('Ventas');
+      if(!cfgCta?.cuenta_iva_id)faltantesAnul.push('IVA por Pagar');
+      if(costoTotal>0&&(!cfgCta?.cuenta_inventario_id||!cfgCta?.cuenta_costo_ventas_id))faltantesAnul.push('Inventario/Costo de Ventas');
+      if(faltantesAnul.length){
+        toast(`Factura anulada, pero la reversión contable NO se aplicó: falta configurar ${faltantesAnul.join(', ')} en Configuración contable`,'wn');
+      }else{
+        for(const p of f.pagos){const monto=parseFloat(p.monto)||0;if(monto<=0)continue;
+          if(p.metodo==='Efectivo')await postearCuentaPorId(cfgCta.cuenta_caja_id,0,monto);
+          else if(p.metodo==='Credito')await postearCuentaPorId(cfgCta.cuenta_cxc_id,0,monto);
+          else await postearCuentaPorId(cfgCta.cuenta_bancos_id,0,monto);
+        }
+        await postearCuentaPorId(cfgCta.cuenta_ventas_id,f.subtotal||0,0);
+        await postearCuentaPorId(cfgCta.cuenta_iva_id,f.iva||0,0);
+        if(costoTotal>0){await postearCuentaPorId(cfgCta.cuenta_costo_ventas_id,0,costoTotal);await postearCuentaPorId(cfgCta.cuenta_inventario_id,costoTotal,0)}
+      }
     }
     await supa.from('facturas').update({estado:'Anulada'}).eq('id',id);
     toast(`Factura ${f.numero} anulada — inventario restaurado`,'wn');
@@ -3449,10 +3468,23 @@ async function posConfirmarVenta(){
       if(p)await supa.from('productos').update({stock:(p.stock||0)-it.cantidad}).eq('id',it.producto_id);
       await supa.from('movimientos_inv').insert({empresa_id:CE,producto_id:it.producto_id,tipo:'salida',cantidad:it.cantidad,costo_unitario:it.costo,vr_unitario:it.costo,ref:'POS',factura_id:String(facId),nota:`Venta POS ${numero}`});
     }
-    for(const p of posPagos){const monto=parseFloat(p.monto)||0;if(monto<=0)continue;if(p.metodo==='Efectivo')await postearCuenta('1.1.01',monto,0);else if(p.metodo==='Credito')await postearCuenta('1.1.03',monto,0);else await postearCuenta('1.1.02',monto,0);}
-    await postearCuenta('4.1.01',0,sub);await postearCuenta('2.1.02',0,iva);
+    const cfgCta=await obtenerConfigCuentas();
+    const metodosUsados=new Set(posPagos.filter(p=>(parseFloat(p.monto)||0)>0).map(p=>p.metodo));
     const costoTotal=posCart.reduce((a,i)=>a+(i.costo||0)*i.cantidad,0);
-    if(costoTotal>0){await postearCuenta('5.1.01',costoTotal,0);await postearCuenta('1.2.01',0,costoTotal)}
+    const faltantes=[];
+    if(metodosUsados.has('Efectivo')&&!cfgCta?.cuenta_caja_id)faltantes.push('Caja');
+    if((metodosUsados.has('Tarjeta')||metodosUsados.has('Transferencia'))&&!cfgCta?.cuenta_bancos_id)faltantes.push('Bancos');
+    if(metodosUsados.has('Credito')&&!cfgCta?.cuenta_cxc_id)faltantes.push('Cuentas por Cobrar');
+    if(!cfgCta?.cuenta_ventas_id)faltantes.push('Ventas');
+    if(!cfgCta?.cuenta_iva_id)faltantes.push('IVA por Pagar');
+    if(costoTotal>0&&(!cfgCta?.cuenta_inventario_id||!cfgCta?.cuenta_costo_ventas_id))faltantes.push('Inventario/Costo de Ventas');
+    if(faltantes.length){
+      toast(`${numero} registrada, pero NO se contabilizó: falta configurar ${faltantes.join(', ')} en Configuración contable`,'wn');
+    }else{
+      for(const p of posPagos){const monto=parseFloat(p.monto)||0;if(monto<=0)continue;if(p.metodo==='Efectivo')await postearCuentaPorId(cfgCta.cuenta_caja_id,monto,0);else if(p.metodo==='Credito')await postearCuentaPorId(cfgCta.cuenta_cxc_id,monto,0);else await postearCuentaPorId(cfgCta.cuenta_bancos_id,monto,0);}
+      await postearCuentaPorId(cfgCta.cuenta_ventas_id,0,sub);await postearCuentaPorId(cfgCta.cuenta_iva_id,0,iva);
+      if(costoTotal>0){await postearCuentaPorId(cfgCta.cuenta_costo_ventas_id,costoTotal,0);await postearCuentaPorId(cfgCta.cuenta_inventario_id,0,costoTotal)}
+    }
     if(posProformaOrigenId){await supa.from('proformas').update({estado:'Convertida'}).eq('id',posProformaOrigenId)}
     // --- Imprimir ANTES de limpiar para que el modal se abra con los datos ---
     await posImprimirTicket({...facData,id:facId});
@@ -3670,7 +3702,7 @@ async function posConfirmarDevolucion(){
     const chk=document.getElementById('dchk'+i);
     if(chk&&chk.checked){
       const q=Math.min(parseInt(document.getElementById('dqty'+i).value)||0,it.cantidad);
-      if(q>0){montoDev+=it.precio*q*1.12;itemsDev.push({producto_id:it.producto_id,nombre:it.nombre,cantidad:q,costo:it.costo,precio:it.precio})}
+      if(q>0){montoDev+=it.precio*q*(1+IVA_RATE);itemsDev.push({producto_id:it.producto_id,nombre:it.nombre,cantidad:q,costo:it.costo,precio:it.precio})}
     }
   });
   if(itemsDev.length===0)return toast('Selecciona al menos un producto','er');
@@ -3685,10 +3717,22 @@ async function posConfirmarDevolucion(){
   const baseDev=itemsDev.reduce((a,i)=>a+i.precio*i.cantidad,0);
   const ivaDev=baseDev*IVA_RATE;
   const costoDev=itemsDev.reduce((a,i)=>a+(i.costo||0)*i.cantidad,0);
-  await postearCuenta('4.1.01',baseDev,0);
-  await postearCuenta('2.1.02',ivaDev,0);
-  if(costoDev>0){await postearCuenta('1.2.01',costoDev,0);await postearCuenta('5.1.01',0,costoDev)}
-  if(metodoReembolso==='Efectivo')await postearCuenta('1.1.01',0,montoDev);else if(metodoReembolso==='Credito')await postearCuenta('1.1.03',0,montoDev);else await postearCuenta('1.1.02',0,montoDev);
+  const cfgCta=await obtenerConfigCuentas();
+  const faltantesDev=[];
+  if(!cfgCta?.cuenta_ventas_id)faltantesDev.push('Ventas');
+  if(!cfgCta?.cuenta_iva_id)faltantesDev.push('IVA por Pagar');
+  if(costoDev>0&&(!cfgCta?.cuenta_inventario_id||!cfgCta?.cuenta_costo_ventas_id))faltantesDev.push('Inventario/Costo de Ventas');
+  if(metodoReembolso==='Efectivo'&&!cfgCta?.cuenta_caja_id)faltantesDev.push('Caja');
+  if((metodoReembolso==='Tarjeta'||metodoReembolso==='Transferencia')&&!cfgCta?.cuenta_bancos_id)faltantesDev.push('Bancos');
+  if(metodoReembolso==='Credito'&&!cfgCta?.cuenta_cxc_id)faltantesDev.push('Cuentas por Cobrar');
+  if(faltantesDev.length){
+    toast(`Devolución registrada, pero NO se contabilizó: falta configurar ${faltantesDev.join(', ')} en Configuración contable`,'wn');
+  }else{
+    await postearCuentaPorId(cfgCta.cuenta_ventas_id,baseDev,0);
+    await postearCuentaPorId(cfgCta.cuenta_iva_id,ivaDev,0);
+    if(costoDev>0){await postearCuentaPorId(cfgCta.cuenta_inventario_id,costoDev,0);await postearCuentaPorId(cfgCta.cuenta_costo_ventas_id,0,costoDev)}
+    if(metodoReembolso==='Efectivo')await postearCuentaPorId(cfgCta.cuenta_caja_id,0,montoDev);else if(metodoReembolso==='Credito')await postearCuentaPorId(cfgCta.cuenta_cxc_id,0,montoDev);else await postearCuentaPorId(cfgCta.cuenta_bancos_id,0,montoDev);
+  }
   closeM('mDevPos');toast('Devolución registrada','ok');
   if(CS==='pos')await loadPOS();
 }
@@ -4990,7 +5034,12 @@ async function saveCompra(){
   }else{
     const{error}=await supa.from('compras').insert(data);
     if(error){toast('Error al registrar: '+error.message,'er');return}
-    await postearCuentaPorId(cuentaId,base0+baseiva+iva,0);await postearCuenta('2.1.01',0,base0+baseiva+iva);
+    const cfgCta=await obtenerConfigCuentas();
+    if(!cfgCta?.cuenta_cxp_id){
+      toast('Compra registrada, pero NO se contabilizó: falta configurar la cuenta de Cuentas por Pagar en Configuración contable','wn');
+    }else{
+      await postearCuentaPorId(cuentaId,base0+baseiva+iva,0);await postearCuentaPorId(cfgCta.cuenta_cxp_id,0,base0+baseiva+iva);
+    }
   }
   closeM('mCompra');toast(id?'Compra actualizada':'Compra registrada y posteada','ok');await loadCompras();
 }
@@ -5001,7 +5050,11 @@ async function delCompra(id){
   if(error){toast('No se pudo eliminar (verifica que no tenga retenciones asociadas)','er');return}
   if(c&&c.cuenta_id){
     const total=(c.base0||0)+(c.baseiva||0)+(c.iva||0);
-    if(total>0){await postearCuentaPorId(c.cuenta_id,0,total);await postearCuenta('2.1.01',total,0)}
+    if(total>0){
+      const cfgCta=await obtenerConfigCuentas(c.empresa_id);
+      if(!cfgCta?.cuenta_cxp_id){toast('Compra eliminada, pero el asiento NO se revirtió: falta configurar la cuenta de Cuentas por Pagar','wn')}
+      else{await postearCuentaPorId(c.cuenta_id,0,total);await postearCuentaPorId(cfgCta.cuenta_cxp_id,total,0)}
+    }
   }
   toast('Eliminada','wn');await loadCompras();
 }
@@ -5131,7 +5184,17 @@ async function saveRetencion(){
   else{const{data:nueva,error}=await supa.from('retenciones').insert(data).select().single();if(error){toast('Error al registrar: '+error.message,'er');return}retId=nueva.id}
   if(compraId){
     await supa.from('compras').update({retencion_id:retId,monto_retenido:ret_iva+ret_renta}).eq('id',compraId);
-    if(esNueva){const totalRet=ret_iva+ret_renta;if(totalRet>0){await postearCuenta('2.1.01',totalRet,0);await postearCuenta('2.1.02',0,totalRet)}}
+    if(esNueva){
+      const totalRet=ret_iva+ret_renta;
+      if(totalRet>0){
+        const cfgCta=await obtenerConfigCuentas();
+        if(!cfgCta?.cuenta_cxp_id||!cfgCta?.cuenta_retenciones_id){
+          toast('Retención registrada, pero NO se contabilizó: falta configurar Cuentas por Pagar y/o Retenciones por Pagar en Configuración contable','wn');
+        }else{
+          await postearCuentaPorId(cfgCta.cuenta_cxp_id,totalRet,0);await postearCuentaPorId(cfgCta.cuenta_retenciones_id,0,totalRet);
+        }
+      }
+    }
   }
   closeM('mRetencion');toast(id?'Retención actualizada':'Retención registrada','ok');await loadRetenciones();await loadCompras();
 }
@@ -5142,7 +5205,11 @@ async function delRetencion(id){
   if(error){toast('No se pudo eliminar','er');return}
   if(r&&r.compra_id){
     const totalRet=(r.total_retenido||0);
-    if(totalRet>0){await postearCuenta('2.1.01',0,totalRet);await postearCuenta('2.1.02',totalRet,0)}
+    if(totalRet>0){
+      const cfgCta=await obtenerConfigCuentas(r.empresa_id);
+      if(!cfgCta?.cuenta_cxp_id||!cfgCta?.cuenta_retenciones_id){toast('Retención eliminada, pero el asiento NO se revirtió: falta configurar Cuentas por Pagar y/o Retenciones por Pagar','wn')}
+      else{await postearCuentaPorId(cfgCta.cuenta_cxp_id,0,totalRet);await postearCuentaPorId(cfgCta.cuenta_retenciones_id,totalRet,0)}
+    }
     await supa.from('compras').update({retencion_id:null,monto_retenido:0}).eq('id',r.compra_id);
   }
   toast('Eliminada','wn');await loadRetenciones();
