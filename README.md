@@ -3100,7 +3100,7 @@ async function anularFactura(id){
       if(p)await supa.from('productos').update({stock:(p.stock||0)+(it.cantidad||0)}).eq('id',it.producto_id);
       await supa.from('movimientos_inv').insert({empresa_id:f.empresa_id,producto_id:it.producto_id,tipo:'entrada',cantidad:it.cantidad||0,costo_unitario:it.costo||0,vr_unitario:it.costo||0,ref:'ANULACION',factura_id:String(id),nota:`Anulación de factura ${f.numero}`});
     }
-    if(Array.isArray(f.pagos)&&f.pagos.length){
+    if(f.origen==='POS'&&Array.isArray(f.pagos)&&f.pagos.length){
       for(const p of f.pagos){const monto=parseFloat(p.monto)||0;if(monto<=0)continue;
         if(p.metodo==='Efectivo')await postearCuenta('1.1.01',0,monto);
         else if(p.metodo==='Credito')await postearCuenta('1.1.03',0,monto);
@@ -4995,9 +4995,14 @@ async function saveCompra(){
   closeM('mCompra');toast(id?'Compra actualizada':'Compra registrada y posteada','ok');await loadCompras();
 }
 async function delCompra(id){
-  if(!confirm('¿Eliminar compra?'))return;
+  if(!confirm('¿Eliminar compra?\n\nSe revertirá el asiento contable que se generó al registrarla.'))return;
+  const{data:c}=await supa.from('compras').select('*').eq('id',id).maybeSingle();
   const{error}=await supa.from('compras').delete().eq('id',id);
   if(error){toast('No se pudo eliminar (verifica que no tenga retenciones asociadas)','er');return}
+  if(c&&c.cuenta_id){
+    const total=(c.base0||0)+(c.baseiva||0)+(c.iva||0);
+    if(total>0){await postearCuentaPorId(c.cuenta_id,0,total);await postearCuenta('2.1.01',total,0)}
+  }
   toast('Eliminada','wn');await loadCompras();
 }
 function calcCompra(){
@@ -5120,19 +5125,26 @@ async function saveRetencion(){
     factura_ref:document.getElementById('mr_ref').value.trim(),
     autorizacion:document.getElementById('mr_aut').value.trim(),
     compra_id:compraId};
+  const esNueva=!id;
   let retId;
   if(id){retId=id;const{error}=await supa.from('retenciones').update(data).eq('id',id);if(error){toast('Error al actualizar: '+error.message,'er');return}}
   else{const{data:nueva,error}=await supa.from('retenciones').insert(data).select().single();if(error){toast('Error al registrar: '+error.message,'er');return}retId=nueva.id}
   if(compraId){
     await supa.from('compras').update({retencion_id:retId,monto_retenido:ret_iva+ret_renta}).eq('id',compraId);
-    const totalRet=ret_iva+ret_renta;if(totalRet>0){await postearCuenta('2.1.01',totalRet,0);await postearCuenta('2.1.02',0,totalRet)}
+    if(esNueva){const totalRet=ret_iva+ret_renta;if(totalRet>0){await postearCuenta('2.1.01',totalRet,0);await postearCuenta('2.1.02',0,totalRet)}}
   }
   closeM('mRetencion');toast(id?'Retención actualizada':'Retención registrada','ok');await loadRetenciones();await loadCompras();
 }
 async function delRetencion(id){
-  if(!confirm('¿Eliminar retención?'))return;
+  if(!confirm('¿Eliminar retención?\n\nSi estaba vinculada a una compra, se revertirá el asiento contable que se generó al registrarla.'))return;
+  const{data:r}=await supa.from('retenciones').select('*').eq('id',id).maybeSingle();
   const{error}=await supa.from('retenciones').delete().eq('id',id);
   if(error){toast('No se pudo eliminar','er');return}
+  if(r&&r.compra_id){
+    const totalRet=(r.total_retenido||0);
+    if(totalRet>0){await postearCuenta('2.1.01',0,totalRet);await postearCuenta('2.1.02',totalRet,0)}
+    await supa.from('compras').update({retencion_id:null,monto_retenido:0}).eq('id',r.compra_id);
+  }
   toast('Eliminada','wn');await loadRetenciones();
 }
 async function loadCXP(){
