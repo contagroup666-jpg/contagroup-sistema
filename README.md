@@ -5275,7 +5275,14 @@ async function confirmarPagoCompra(){
     const cuentaId=document.getElementById('pc_cuenta').value||null;
     await supa.from('movimientos_banco').insert({empresa_id:CE,cuenta_id:cuentaId,tipo:'egreso',monto,concepto,referencia:c.numero,fecha});
   }
-  await crearAsientoDoble('CMP',`${concepto} (Cuentas por Pagar / ${forma==='Efectivo'?'Caja':'Bancos'})`,fecha,monto,'2.1.01',forma==='Efectivo'?'1.1.01':'1.1.02');
+  const cfgCta=await obtenerConfigCuentas();
+  const cuentaOrigenId=forma==='Efectivo'?cfgCta?.cuenta_caja_id:cfgCta?.cuenta_bancos_id;
+  if(!cfgCta?.cuenta_cxp_id||!cuentaOrigenId){
+    toast(`Pago registrado, pero NO se contabilizó: falta configurar Cuentas por Pagar y/o ${forma==='Efectivo'?'Caja':'Bancos'} en Configuración contable`,'wn');
+  }else{
+    const{error:eAsiento}=await supa.rpc('fn_crear_asiento',{p_empresa_id:CE,p_concepto:`${concepto} (Cuentas por Pagar / ${forma==='Efectivo'?'Caja':'Bancos'})`,p_fecha:fecha,p_lineas:[{cuenta_id:cfgCta.cuenta_cxp_id,debe:monto,haber:0},{cuenta_id:cuentaOrigenId,debe:0,haber:monto}],p_creado_por:CU?.id||null,p_prefijo:'CMP'});
+    if(eAsiento)toast('Pago registrado, pero el asiento contable falló: '+eAsiento.message,'er');
+  }
   await supa.from('compras').update({estado:'Pagado',fecha_pago:fecha,forma_pago:forma}).eq('id',id);
   closeM('mPagoCompra');toast('Pago registrado: '+fmt(monto),'ok');
   await loadCompras();
